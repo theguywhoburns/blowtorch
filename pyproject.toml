@@ -1,0 +1,46 @@
+[project]
+name = "blowtorch"
+version = "0.1.0"
+description = "Researcher oriented lib designed for all possible things"
+readme = "README.md"
+authors = [
+    { name = "theguywhoburns", email = "burndev@mail.ru" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "torch>=2.13.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.28,<0.12.0"]
+build-backend = "uv_build"
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+
+[dependency-groups]
+dev = [
+    "numpy>=2.4.4",
+    "norse>=0.1.1",
+    "pytest>=9.1.1",
+]
+bench = [
+    "norse>=0.1.1",
+    "snntorch>=0.8.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["src"]
+python_files = ["*.test.py", "test_*.py", "*_test.py"]
+addopts = ["--import-mode=importlib"]
+markers = [
+    "slow: slow tests (CUDA-graph compile) excluded via -m 'not slow'",
+]
+filterwarnings = [
+    # Emitted inside torch.compile itself; not actionable from our code.
+    "ignore::DeprecationWarning:torch.jit._script:",
+    # Informational nudge for training scripts; equivalence tests
+    # legitimately exercise hidden-mode sequence forward under autograd.
+    "ignore:.*hidden-mode forward_sequence with gradients is usually slower.*:RuntimeWarning",
+]
