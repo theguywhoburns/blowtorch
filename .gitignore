@@ -11,3 +11,4 @@ devenv.local.yaml
 
 # upstream backup (contains its own .git)
 orig/
+dist/

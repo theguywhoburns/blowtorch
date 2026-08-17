@@ -71,7 +71,7 @@ class AdEx(SnnModule):
 
         dv = (
             -(mem - V_rest)
-            + delta_T * ((mem - V_T) / delta_T).exp()
+            + delta_T * self.safe_exp((mem - V_T) / delta_T)
             - adapt
             + x
         ) / tau_m

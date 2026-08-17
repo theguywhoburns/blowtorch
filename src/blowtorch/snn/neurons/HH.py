@@ -4,11 +4,7 @@ from blowtorch.base import (
     clamp_positive,
 )
 from blowtorch.snn import SnnModule
-
-
-def positive_int(value: int) -> None:
-    if not isinstance(value, int) or value < 1:
-        raise ValueError(f"must be a positive int, got {value!r}")
+from blowtorch.util import positive
 
 
 class HH(SnnModule):
@@ -33,8 +29,16 @@ class HH(SnnModule):
     dt = SnnModule.Constant(default=0.01, dtype=float)
     substeps = SnnModule.Constant(
         default=1,
-        validate=positive_int,
+        validate=positive,
         dtype=int,
+    )
+    # Ceiling for the six rate functions. A rate above this saturates its gate
+    # to an endpoint within one ``dt`` anyway, and a finite cap keeps the gate
+    # updates free of ``inf * 0 -> nan`` under extreme membrane potentials.
+    rate_cap = SnnModule.Constant(
+        default=1e4,
+        validate=positive,
+        dtype=float,
     )
 
     class Params:
@@ -74,17 +78,17 @@ class HH(SnnModule):
         h = SnnModule.StateSpec(default=0.5961)
         n = SnnModule.StateSpec(default=0.3177)
 
-    @staticmethod
-    def _hh_rate(x: Tensor, a: float, c: float) -> Tensor:
+    def _hh_rate(self, x: Tensor, a: float, c: float) -> Tensor:
         """
         Stable HH forward rate ``a * x / (1 - exp(-x / c))``.
 
         Uses the analytical limit ``a * c`` when ``x`` is near zero. The
         denominator is replaced by 1 inside the mask so both ``where`` branches
-        stay numerically safe in the backward pass.
+        stay numerically safe in the backward pass. ``safe_exp`` keeps the
+        exponential finite for any membrane potential.
         """
         mask = x.abs() < 1e-4
-        d = (1.0 - (-x / c).exp()).where(~mask, 1.0)
+        d = (1.0 - self.safe_exp(-x / c)).where(~mask, 1.0)
         return (a * x / d).where(~mask, a * c)
 
     def _step(
@@ -97,6 +101,7 @@ class HH(SnnModule):
     ) -> StepOutput:
         gNa, gK, gL, ENa, EK, EL, C, threshold = self.constrained()
         dt = self.dt / self.substeps
+        cap = self.rate_cap
 
         for _ in range(self.substeps):
             INa = gNa * (m ** 3) * h * (mem - ENa)
@@ -104,12 +109,12 @@ class HH(SnnModule):
             IL = gL * (mem - EL)
             mem = mem + (x - INa - IK - IL) / C * dt
 
-            am = self._hh_rate(mem + 40, 0.1, 10.0)
-            bm = 4.0 * (-(mem + 65) / 18).exp()
-            ah = 0.07 * (-(mem + 65) / 20).exp()
-            bh = 1.0 / (1 + (-(mem + 35) / 10).exp())
-            an = self._hh_rate(mem + 55, 0.01, 10.0)
-            bn = 0.125 * (-(mem + 65) / 80).exp()
+            am = self._hh_rate(mem + 40, 0.1, 10.0).clamp(max=cap)
+            bm = (4.0 * self.safe_exp(-(mem + 65) / 18)).clamp(max=cap)
+            ah = (0.07 * self.safe_exp(-(mem + 65) / 20)).clamp(max=cap)
+            bh = 1.0 / (1 + self.safe_exp(-(mem + 35) / 10))
+            an = self._hh_rate(mem + 55, 0.01, 10.0).clamp(max=cap)
+            bn = (0.125 * self.safe_exp(-(mem + 65) / 80)).clamp(max=cap)
 
             m = (m + (am * (1 - m) - bm * m) * dt).clamp(0.0, 1.0)
             h = (h + (ah * (1 - h) - bh * h) * dt).clamp(0.0, 1.0)

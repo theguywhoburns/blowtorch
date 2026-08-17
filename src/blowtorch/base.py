@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import keyword
+import types
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Callable, ClassVar, Optional, TypeVar, Union, overload
@@ -173,6 +174,10 @@ def Param(
 
     makes the assigned attribute a ``float`` for static type checkers.
     Returns Any otherwise.
+
+    Constraints apply only to learnable parameters: a fixed (non-learnable)
+    param is used raw in ``constrained()`` / resets, while a learnable one has
+    its constraint applied on the hot path.
     """
     return ParamSpec(
         default=default,
@@ -271,7 +276,8 @@ class StateSpec:
 
         mem = BlowtorchModule.StateSpec(shape=(F,))   # per-feature state
 
-    or `None` for a scalar-shaped state.
+    `None` behaves identically to "input" (the state follows the input shape);
+    there is no scalar-shaped state convention.
     """
     default: float | Callable[[nn.Module], float] = 0.0
     differentiable: bool = True
@@ -364,9 +370,20 @@ class BlowtorchModule(nn.Module):
 
     _bt_spec_extensions: ClassVar[dict[str, Callable[..., Any]]] = {}
 
-    # ------------------------------------------------------------------
+    @staticmethod
+    def safe_exp(t: Tensor) -> Tensor:
+        """
+        Exponential that stays finite for any input.
+
+        The argument is clamped below ``log(finfo(dtype).max)`` (with a small
+        margin so the result can't round up to ``inf``), so neither the output
+        nor its gradient ever overflows for any dtype. Matches ``exp`` wherever
+        the plain exponential is safely below the dtype maximum.
+        """
+        max_arg = torch.log(torch.tensor(torch.finfo(t.dtype).max, dtype=t.dtype)) - 1
+        return torch.clamp(t, max=max_arg).exp()
+
     # Class construction / metadata
-    # ------------------------------------------------------------------
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -457,9 +474,7 @@ class BlowtorchModule(nn.Module):
 
         return tuple(entries.items())
 
-    # ------------------------------------------------------------------
     # Runtime typed hints / signature generation
-    # ------------------------------------------------------------------
 
     @classmethod
     def _extra_init_params(cls) -> list[inspect.Parameter]:
@@ -561,9 +576,7 @@ class BlowtorchModule(nn.Module):
 
         cls.__signature__ = inspect.Signature(sig_params)
 
-    # ------------------------------------------------------------------
     # Construction
-    # ------------------------------------------------------------------
 
     def __init__(
         self,
@@ -573,6 +586,12 @@ class BlowtorchModule(nn.Module):
         validate: Optional[bool] = None,
         **kwargs: Any,
     ) -> None:
+        """
+        ``size`` is metadata only: it is stored (and shown in ``repr``) but does
+        not influence allocation, which derives from the input shape or each
+        ``StateSpec.shape``. ``init_hidden=True`` owns the state as hidden
+        buffers; ``init_hidden=False`` requires the caller to pass state.
+        """
         super().__init__()
 
         if size is not None:
@@ -652,6 +671,7 @@ class BlowtorchModule(nn.Module):
 
         for name, spec in self._bt_constant_specs.items():
             value = kwargs.pop(name, spec.default)
+            value_orig = value
 
             if spec.validate is not None:
                 try:
@@ -663,6 +683,11 @@ class BlowtorchModule(nn.Module):
 
             if isinstance(spec.dtype, type):
                 value = spec.dtype(value)
+                if value != value_orig:
+                    raise ValueError(
+                        f"{type(self).__name__} {name}: value {value_orig!r} "
+                        f"cannot be stored as {spec.dtype.__name__}"
+                    )
 
             setattr(self, name, value)
 
@@ -701,9 +726,7 @@ class BlowtorchModule(nn.Module):
         """
         self._bt_apply_resets = lambda pre_state, spk: pre_state
 
-    # ------------------------------------------------------------------
     # Validation flag
-    # ------------------------------------------------------------------
 
     @property
     def validate(self) -> bool:
@@ -723,9 +746,7 @@ class BlowtorchModule(nn.Module):
         """Allow dynamic toggling: `module.validate = False`."""
         self._validate_override = bool(value)
 
-    # ------------------------------------------------------------------
     # Hot-path constrained parameter accessor
-    # ------------------------------------------------------------------
 
     def constrained(self) -> tuple[Tensor, ...]:
         """
@@ -738,7 +759,7 @@ class BlowtorchModule(nn.Module):
 
         The returned expression is frozen at init time.
         """
-        return self._bt_constrained_fn(self)
+        return self._bt_constrained_fn()
 
     def _install_constrained(self) -> None:
         """
@@ -784,11 +805,9 @@ class BlowtorchModule(nn.Module):
         ns: dict[str, Any] = {}
         exec(src, ns)
 
-        self._bt_constrained_fn = ns["_bt_constrained"]
+        self._bt_constrained_fn = types.MethodType(ns["_bt_constrained"], self)
 
-    # ------------------------------------------------------------------
     # Spec helpers
-    # ------------------------------------------------------------------
 
     def _resolve_default(
         self,
@@ -815,9 +834,7 @@ class BlowtorchModule(nn.Module):
             return None
         return _floating_dtype(dtype)
 
-    # ------------------------------------------------------------------
     # Hidden-mode allocation / step
-    # ------------------------------------------------------------------
 
     def _alloc_hidden(self, x: Tensor) -> None:
         dtype = x.dtype if x.is_floating_point() else torch.get_default_dtype()
@@ -847,11 +864,27 @@ class BlowtorchModule(nn.Module):
 
             module.allocate_like(x)
             module.fast_sequence_()
+
+        The call is a no-op once buffers exist. Hidden buffers keep the shape
+        of the first input; a later input with different batch/feature dims
+        raises ``ValueError`` from the forward paths when validation is on.
         """
         if self.init_hidden and not self._bt_allocated:
             self._alloc_hidden(x)
 
         return self
+
+    def _check_hidden_input_shape(self, x: Tensor) -> None:
+        for name, spec in zip(self._bt_state_names, self._bt_state_specs):
+            ref = self._buffers.get(name)
+            expected = self._spec_shape(spec, x)
+
+            if ref is not None and ref.shape != expected:
+                raise ValueError(
+                    f"{type(self).__name__} hidden buffers were allocated for "
+                    f"shape {tuple(ref.shape)}, got input shape {tuple(x.shape)}; "
+                    f"the batch/feature dims must stay fixed in hidden mode"
+                )
 
     def _check_step_output(self, out: StepOutput) -> None:
         if not isinstance(out, tuple):
@@ -897,6 +930,8 @@ class BlowtorchModule(nn.Module):
     def _forward_hidden(self, x: Tensor) -> Tensor | StepOutput:
         if not self._bt_allocated:
             self._alloc_hidden(x)
+        elif self.validate:
+            self._check_hidden_input_shape(x)
 
         out = self._hidden_step(x)
 
@@ -907,9 +942,7 @@ class BlowtorchModule(nn.Module):
 
         return out[:n_outputs]
 
-    # ------------------------------------------------------------------
     # Explicit-mode step
-    # ------------------------------------------------------------------
 
     def _forward_explicit(self, x: Tensor, *state: Tensor) -> StepOutput:
         if self.validate:
@@ -933,9 +966,7 @@ class BlowtorchModule(nn.Module):
 
         return out
 
-    # ------------------------------------------------------------------
     # Public forward
-    # ------------------------------------------------------------------
 
     def forward(self, x: Tensor, *state: Tensor) -> Tensor | StepOutput:
         if self.init_hidden:
@@ -949,9 +980,7 @@ class BlowtorchModule(nn.Module):
 
         return self._forward_explicit(x, *state)
 
-    # ------------------------------------------------------------------
     # Trainer / loop convenience
-    # ------------------------------------------------------------------
 
     def step_state(
         self,
@@ -989,9 +1018,7 @@ class BlowtorchModule(nn.Module):
         """
         return self.step_state(x, state)
 
-    # ------------------------------------------------------------------
     # State factories
-    # ------------------------------------------------------------------
 
     def initial_state(
         self,
@@ -1001,15 +1028,21 @@ class BlowtorchModule(nn.Module):
     ) -> tuple[Tensor, ...]:
         """
         Create canonical initial explicit state using Spec defaults.
+
+        ``batch_shape`` is the shape the step input would have. States whose
+        ``StateSpec.shape`` is an explicit tuple use that tuple instead, so the
+        explicit state factories agree with hidden-mode allocation.
         """
         dtype = self._explicit_state_dtype(dtype)
 
         state: list[Tensor] = []
 
         for spec in self._bt_state_specs:
+            shape = spec.shape if isinstance(spec.shape, tuple) else batch_shape
+
             state.append(
                 torch.full(
-                    batch_shape,
+                    shape,
                     self._resolve_default(spec.default),
                     device=device,
                     dtype=dtype,
@@ -1026,15 +1059,20 @@ class BlowtorchModule(nn.Module):
     ) -> tuple[Tensor, ...]:
         """
         Create zeroed explicit state.
+
+        ``batch_shape`` is the shape the step input would have. States whose
+        ``StateSpec.shape`` is an explicit tuple use that tuple instead.
         """
         dtype = self._explicit_state_dtype(dtype)
 
         state: list[Tensor] = []
 
-        for _ in self._bt_state_specs:
+        for spec in self._bt_state_specs:
+            shape = spec.shape if isinstance(spec.shape, tuple) else batch_shape
+
             state.append(
                 torch.zeros(
-                    batch_shape,
+                    shape,
                     device=device,
                     dtype=dtype,
                 )
@@ -1071,9 +1109,7 @@ class BlowtorchModule(nn.Module):
             dtype=x_seq.dtype,
         )
 
-    # ------------------------------------------------------------------
     # Reset / detach
-    # ------------------------------------------------------------------
 
     def reset(self) -> None:
         """
@@ -1104,9 +1140,7 @@ class BlowtorchModule(nn.Module):
             if isinstance(t, Tensor):
                 self._buffers[name] = t.detach()
 
-    # ------------------------------------------------------------------
     # Checkpointing hidden state
-    # ------------------------------------------------------------------
 
     def get_extra_state(self) -> Optional[dict[str, Tensor]]:
         """
@@ -1139,9 +1173,7 @@ class BlowtorchModule(nn.Module):
 
         self._bt_allocated = True
 
-    # ------------------------------------------------------------------
     # Sequence scan
-    # ------------------------------------------------------------------
 
     def forward_sequence(
         self,
@@ -1217,6 +1249,8 @@ class BlowtorchModule(nn.Module):
     def _hidden_sequence_scan(self, x_seq: Tensor) -> Tensor | StepOutput:
         if not self._bt_allocated:
             self._alloc_hidden(x_seq[0])
+        elif self.validate:
+            self._check_hidden_input_shape(x_seq[0])
 
         T = x_seq.shape[0]
         n_outputs = len(self._bt_output_names)
@@ -1353,6 +1387,14 @@ class BlowtorchModule(nn.Module):
         any other mode the outputs are returned as-is - cloning would cost a full
         extra copy of the spike tensor on every call.
 
+        Explicit mode and ``state=None``: the initial state is allocated inside
+        the compiled call on every invocation. That is functionally correct in
+        all modes (the returned state is freshly allocated, and graph modes
+        clone it), but it is a per-call allocation the compiler must plan for.
+        If you call the compiled scan repeatedly on chunks of a long sequence,
+        allocate the state once with ``initial_state`` and pass it explicitly to
+        skip that allocation and keep the output state un-cloned in default mode.
+
         Note on sequence length: the compiled unit is the fully unrolled T-step
         scan, so compilation cost and peak memory grow with T. It is fast up to
         roughly T~1000 and impractical (``RecursionError`` in inductor, or
@@ -1402,9 +1444,7 @@ class BlowtorchModule(nn.Module):
 
         return self
 
-    # ------------------------------------------------------------------
     # Repr
-    # ------------------------------------------------------------------
 
     def extra_repr(self) -> str:
         parts: list[str] = []
@@ -1416,9 +1456,7 @@ class BlowtorchModule(nn.Module):
 
         return ", ".join(parts)
 
-    # ------------------------------------------------------------------
     # Abstract step
-    # ------------------------------------------------------------------
 
     def _step(self, x: Tensor, *state: Tensor) -> StepOutput:
         raise NotImplementedError(

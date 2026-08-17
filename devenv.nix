@@ -12,7 +12,12 @@
     venv.enable = true;
     uv = {
       enable = true;
-      sync.enable = true;
+      sync = {
+        enable = true;
+        # Match the CUDA 13.0 build declared in pyproject.toml. Switch to a
+        # different backend by changing this extra (see pyproject [project.optional-dependencies]).
+        extras = [ "cu130" ];
+      };
     };
   };
   enterShell = ''

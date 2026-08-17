@@ -25,6 +25,7 @@ __all__ = [
     "hard_zero_reset",
     "no_reset",
     "default_spike_grad",
+    "straight_through_surrogate",
 ]
 
 
@@ -72,7 +73,7 @@ class ResetSpec:
     """
     kind: str
     target: str | ParamSpec | None = None
-    custom_fn: Callable | None = None
+    custom_fn: str | Callable | None = None
 
 
 class Reset:
@@ -105,8 +106,10 @@ class Reset:
         ``state = state + spk * param`` (inject a fixed amount, e.g. AdEx
         adaptation).
     ``custom(fn)``
-        Apply a named method ``fn(self, state, spk)``; the callable must be
-        a bound method name, not a lambda.
+        Apply a per-spike method ``fn(self, state, spk)``. ``fn`` may be the
+        method name as a string (``Reset.custom("my_reset")``) or the bound
+        method itself. A lambda or a name that is not a method on the module
+        is rejected at construction time.
     """
 
     @staticmethod
@@ -134,7 +137,7 @@ class Reset:
         return ResetSpec("add", param)
 
     @staticmethod
-    def custom(fn: Callable) -> ResetSpec:
+    def custom(fn: str | Callable) -> ResetSpec:
         return ResetSpec("custom", custom_fn=fn)
 
 
@@ -153,37 +156,12 @@ class ResetHandler:
         self.apply(module, state_index, spec, reset_spec)
 
 
-# Minimal default surrogate spike
+# Default surrogate spike lives in blowtorch.util.surrogate_gradients.
 
-
-class _StraightThroughSpike(torch.autograd.Function):
-    """
-    Forward:
-        hard threshold
-
-    Backward:
-        identity gradient
-    """
-
-    @staticmethod
-    def forward(ctx, x: Tensor) -> Tensor:
-        return (x > 0).to(x.dtype)
-
-    @staticmethod
-    def backward(ctx, grad_output: Tensor) -> Tensor:
-        return grad_output
-
-
-def default_spike_grad(x: Tensor) -> Tensor:
-    """
-    Default spike function:
-      forward: hard threshold
-      backward: straight-through identity gradient
-    """
-    if torch.is_grad_enabled():
-        return _StraightThroughSpike.apply(x)
-
-    return (x > 0).to(x.dtype)
+from blowtorch.util.surrogate_gradients import (
+    default_spike_grad,
+    straight_through_surrogate,
+)
 
 
 @extend_specs(reset=ResetHandler)
@@ -272,20 +250,31 @@ class SnnModule(BlowtorchModule):
             elif reset_spec.kind == "hard_zero":
                 lines.append(f"state_{i} = state_{i}.masked_fill(spk > 0, 0.0)")
             elif reset_spec.kind == "custom":
-                fn_name = (
-                    reset_spec.custom_fn.__name__
-                    if reset_spec.custom_fn is not None
-                    else None
-                )
-                if fn_name is None or fn_name == "<lambda>":
+                fn = reset_spec.custom_fn
+
+                if isinstance(fn, str):
+                    fn_name = fn
+                elif callable(fn):
+                    fn_name = getattr(fn, "__name__", None)
+                    if fn_name is None or fn_name == "<lambda>":
+                        raise ValueError(
+                            "Reset.custom requires a named method or a "
+                            f"method-name string, got {fn!r}"
+                        )
+                else:
                     raise ValueError(
-                        "Reset.custom requires a named callable method"
+                        "Reset.custom requires a method-name string or a "
+                        f"named callable, got {fn!r}"
                     )
-                if not hasattr(self, fn_name):
+
+                target = getattr(self, fn_name, None)
+
+                if not callable(target):
                     raise ValueError(
                         f"Reset.custom target {fn_name!r} is not a method on "
                         f"{type(self).__name__}"
                     )
+
                 lines.append(f"state_{i} = self.{fn_name}(state_{i}, spk)")
             else:
                 raise ValueError(f"Unknown reset kind {reset_spec.kind!r}")

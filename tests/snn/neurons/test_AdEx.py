@@ -124,6 +124,38 @@ def test_adex_gradients_flow_through_both_states():
     assert m.b.grad is not None and torch.isfinite(m.b.grad).all()
 
 
+def test_adex_large_input_stays_finite():
+    m = AdEx(init_hidden=False)
+    state = m.initial_state((B, F))
+    for _ in range(T):
+        spk, state = m.step_state(torch.full((B, F), 1e3), state)
+    assert torch.isfinite(state[0]).all()
+    assert torch.isfinite(state[1]).all()
+    assert torch.isfinite(spk).all()
+
+
+def test_adex_extreme_membrane_stays_finite():
+    m = AdEx(init_hidden=False)
+    mem, adapt = m.initial_state((B, F))
+    mem = torch.full_like(mem, 1e3)
+    adapt = torch.full_like(adapt, 1e3)
+    spk, (mem, adapt) = m.step_state(torch.full((B, F), 1e3), (mem, adapt))
+    assert torch.isfinite(mem).all()
+    assert torch.isfinite(adapt).all()
+    assert torch.isfinite(spk).all()
+
+
+def test_adex_large_input_gradients_finite():
+    m = AdEx(init_hidden=False, learnable_delta_T=True, learnable_tau_m=True)
+    state = m.initial_state((B, F))
+    spk = None
+    for _ in range(T):
+        spk, state = m.step_state(torch.full((B, F), 1e3), state)
+    (spk.sum() + state[0].sum() + state[1].sum()).backward()
+    assert m.delta_T.grad is not None and torch.isfinite(m.delta_T.grad).all()
+    assert m.tau_m.grad is not None and torch.isfinite(m.tau_m.grad).all()
+
+
 def test_adex_matches_norse_lif_adex():
     pytest.importorskip("norse")
     from norse.torch.functional.lif_adex import (

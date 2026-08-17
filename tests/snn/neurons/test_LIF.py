@@ -312,6 +312,26 @@ def test_lif_integrate_over_threshold_with_beta():
     assert spk.item() == 1.0
     assert torch.allclose(mem, torch.tensor([1.0]))
 
+
+def test_lif_extreme_params_stays_finite():
+    for beta in (0.0, 1e-6, 1.0):
+        lif = LIF(init_hidden=False, beta=beta, threshold=1e-6)
+        state = lif.initial_state((B, F))
+        spk = None
+        for _ in range(500):
+            spk, state = lif.step_state(torch.full((B, F), 1e6), state)
+        assert torch.isfinite(state[0]).all()
+        assert torch.isfinite(spk).all()
+
+
+def test_lif_strong_input_stays_finite():
+    lif = LIF(init_hidden=False, beta=0.99, threshold=1.0)
+    state = lif.initial_state((B, F))
+    for _ in range(2000):
+        spk, state = lif.step_state(torch.full((B, F), 1e6), state)
+    assert torch.isfinite(state[0]).all()
+    assert torch.isfinite(spk).all()
+
 def test_lif_matches_norse_reference():
     norse = pytest.importorskip("norse")
     from norse.torch.functional.lif import (

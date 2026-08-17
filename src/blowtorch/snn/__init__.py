@@ -1,5 +1,19 @@
 from .base import *
-from .neurons import AdEx, HH, LIF
+from blowtorch.util.surrogate_gradients import (
+    atan_surrogate,
+    fast_sigmoid_surrogate,
+    sigmoid_surrogate,
+    triangular_surrogate,
+)
+from .neurons import (
+    AdEx,
+    ALIF,
+    HH,
+    Izhikevich,
+    LIF,
+    SRM0,
+    TwoCompartment,
+)
 
 __all__ = [
     "SnnModule",
@@ -10,7 +24,16 @@ __all__ = [
     "hard_zero_reset",
     "no_reset",
     "default_spike_grad",
+    "straight_through_surrogate",
+    "sigmoid_surrogate",
+    "atan_surrogate",
+    "triangular_surrogate",
+    "fast_sigmoid_surrogate",
     "AdEx",
+    "ALIF",
     "HH",
+    "Izhikevich",
     "LIF",
+    "SRM0",
+    "TwoCompartment",
 ]

@@ -26,6 +26,13 @@ def test_hh_rejects_invalid_substeps():
         HH(substeps=1.5)
 
 
+def test_hh_rejects_invalid_rate_cap():
+    with pytest.raises(ValueError, match="rate_cap"):
+        HH(rate_cap=0.0)
+    with pytest.raises(ValueError, match="rate_cap"):
+        HH(rate_cap=-1.0)
+
+
 def test_hh_stays_at_rest_without_input():
     m = HH(init_hidden=False)
     state = m.initial_state((1,))
@@ -111,6 +118,63 @@ def test_hh_gradients_flow_through_gates_and_params():
     for _ in range(T):
         spk, state = m.step_state(torch.randn(B, F) * 5.0, state)
     spk.mean().backward()
+    assert m.gNa.grad is not None and torch.isfinite(m.gNa.grad).all()
+    assert m.gK.grad is not None and torch.isfinite(m.gK.grad).all()
+    assert m.threshold.grad is not None and torch.isfinite(m.threshold.grad).all()
+
+
+def _assert_states_finite(state, spk):
+    for s in state:
+        assert torch.isfinite(s).all()
+    assert torch.isfinite(spk).all()
+
+
+def test_hh_strong_input_stays_finite():
+    m = HH(init_hidden=False)
+    state = m.initial_state((B, F))
+    for _ in range(200):
+        spk, state = m.step_state(torch.full((B, F), 1e6), state)
+    _assert_states_finite(state, spk)
+
+
+def test_hh_large_dt_stays_finite():
+    m = HH(init_hidden=False, dt=1.0)
+    state = m.initial_state((B, F))
+    for _ in range(200):
+        spk, state = m.step_state(torch.full((B, F), 1e6), state)
+    _assert_states_finite(state, spk)
+
+
+def test_hh_many_substeps_stays_finite():
+    m = HH(init_hidden=False, dt=0.5, substeps=16)
+    state = m.initial_state((B, F))
+    for _ in range(200):
+        spk, state = m.step_state(torch.full((B, F), 1e6), state)
+    _assert_states_finite(state, spk)
+
+
+def test_hh_long_rollout_stays_finite():
+    m = HH(init_hidden=False, dt=0.1)
+    state = m.initial_state((B, F))
+    x = torch.randn(B, F) * 5.0
+    for _ in range(2000):
+        spk, state = m.step_state(x, state)
+    _assert_states_finite(state, spk)
+
+
+def test_hh_strong_input_gradients_finite():
+    m = HH(
+        init_hidden=False,
+        dt=0.5,
+        learnable_gNa=True,
+        learnable_gK=True,
+        learnable_threshold=True,
+    )
+    state = m.initial_state((B, F))
+    spk = None
+    for _ in range(50):
+        spk, state = m.step_state(torch.full((B, F), 1e6), state)
+    (spk.sum() + state[0].sum()).backward()
     assert m.gNa.grad is not None and torch.isfinite(m.gNa.grad).all()
     assert m.gK.grad is not None and torch.isfinite(m.gK.grad).all()
     assert m.threshold.grad is not None and torch.isfinite(m.threshold.grad).all()

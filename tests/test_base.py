@@ -103,6 +103,17 @@ class _FixedShapeHidden(BlowtorchModule):
         return torch.zeros_like(x), mem
 
 
+class _NoneShape(BlowtorchModule):
+    """StateSpec with shape=None (treated as "input", follows the input shape)."""
+
+    class Specs:
+        o = BlowtorchModule.OutputSpec(differentiable=False)
+        mem = BlowtorchModule.StateSpec(shape=None)
+
+    def _step(self, x, mem):
+        return torch.zeros_like(x), mem
+
+
 class _CallableDefault(BlowtorchModule):
     """Spec default that is a callable on the module."""
 
@@ -186,6 +197,29 @@ def test_constraints_grad_compatible():
         fn(t).sum().backward()
         assert t.grad is not None
         assert torch.isfinite(t.grad).all()
+
+
+def test_safe_exp_matches_exp_where_finite():
+    for dtype in (torch.float32, torch.float64):
+        x = torch.linspace(-100.0, 80.0, 200, dtype=dtype)
+        assert torch.equal(BlowtorchModule.safe_exp(x), x.exp())
+
+
+def test_safe_exp_stays_finite_at_extremes():
+    for dtype in (torch.float32, torch.float64):
+        x = torch.tensor([-1e6, 0.0, 1e6, 1e30], dtype=dtype)
+        out = BlowtorchModule.safe_exp(x)
+        assert torch.isfinite(out).all()
+        assert torch.equal(out[1], torch.tensor(1.0, dtype=dtype))
+        max_arg = torch.log(torch.tensor(torch.finfo(dtype).max, dtype=dtype)) - 1
+        assert out[-1].item() == torch.exp(max_arg).item()
+
+
+def test_safe_exp_grad_stays_finite():
+    x = torch.tensor([-1e6, 1e6], requires_grad=True)
+    BlowtorchModule.safe_exp(x).sum().backward()
+    assert x.grad is not None
+    assert torch.isfinite(x.grad).all()
 
 
 # ----------------------------------------------------------------------
@@ -363,6 +397,24 @@ def test_constraint_applied_only_when_learnable():
 
     m_learn = _Leaky(beta=2.0, learnable_beta=True)
     assert m_learn.constrained()[0].item() == 1.0
+
+
+def test_constraint_policy_full_matrix():
+    # Fixed param out of range -> used raw.
+    fixed = _Leaky(beta=2.0)
+    assert fixed.constrained()[0].item() == 2.0
+
+    # Learnable param out of range -> clamped (unit interval).
+    learn = _Leaky(beta=2.0, learnable_beta=True)
+    assert learn.constrained()[0].item() == 1.0
+
+    # Custom per-param constraint override replaces the spec constraint.
+    custom = _Leaky(beta=-5.0, learnable_beta=True, beta_constraint=clamp_positive)
+    assert custom.constrained()[0].item() == pytest.approx(1e-6)
+
+    # Custom constraint is only used while learnable; fixed stays raw.
+    fixed_custom = _Leaky(beta=-5.0, beta_constraint=clamp_positive)
+    assert fixed_custom.constrained()[0].item() == -5.0
 
 
 def test_constrained_empty_when_no_params():
@@ -590,6 +642,15 @@ def test_hidden_alloc_honors_explicit_shape():
     assert m._buffers["o"].shape == (B, F)
 
 
+def test_hidden_explicit_shape_allows_repeated_calls():
+    # An explicit StateSpec shape is decoupled from the input shape, so the
+    # hidden shape guard must not reject a repeated same-shaped call.
+    m = _FixedShapeHidden(init_hidden=True)
+    m(torch.randn(B, F))
+    m(torch.randn(B, F))
+    assert m._buffers["mem"].shape == (B, 2 * F)
+
+
 def test_hidden_state_persists_across_steps():
     m = _Leaky(init_hidden=True)
     out1 = m(torch.ones(B, F))
@@ -754,10 +815,42 @@ def test_initial_state_for_sequence_too_few_dims():
         m.initial_state_for_sequence(x)
 
 
-def test_initial_state_ignores_spec_shape():
+def test_initial_state_honors_explicit_shape():
     m = _FixedShapeHidden()
     state = m.initial_state((B, F))
+    assert state[0].shape == (B, 2 * F)
+
+
+def test_initial_state_input_and_none_follow_input_shape():
+    m_input = _Leaky()
+    state = m_input.initial_state((B, F))
     assert state[0].shape == (B, F)
+
+    m_none = _NoneShape()
+    state = m_none.initial_state((B, F))
+    assert state[0].shape == (B, F)
+
+
+def test_zero_state_honors_explicit_shape():
+    m = _FixedShapeHidden()
+    state = m.zero_state((B, F))
+    assert state[0].shape == (B, 2 * F)
+
+
+def test_explicit_state_factories_match_hidden_allocation():
+    m = _FixedShapeHidden(init_hidden=True)
+    m(torch.randn(B, F))
+    assert m._buffers["mem"].shape == (B, 2 * F)
+
+    m2 = _FixedShapeHidden(init_hidden=False)
+    init = m2.initial_state((B, F))
+    zero = m2.zero_state((B, F))
+    assert init[0].shape == (B, 2 * F)
+    assert zero[0].shape == (B, 2 * F)
+
+    x_seq = torch.randn(T, B, F)
+    seq_init = m2.initial_state_for_sequence(x_seq)
+    assert seq_init[0].shape == (B, 2 * F)
 
 
 # ----------------------------------------------------------------------
@@ -798,6 +891,40 @@ def test_allocate_like_idempotent_preserves_state():
 def test_allocate_like_returns_self():
     m = _Leaky(init_hidden=True)
     assert m.allocate_like(torch.randn(B, F)) is m
+
+
+def test_hidden_shape_change_raises():
+    m = _Leaky(init_hidden=True)
+    m(torch.randn(B, F))
+
+    with pytest.raises(ValueError, match="shape"):
+        m(torch.randn(B + 1, F))
+
+
+def test_hidden_shape_change_sequence_raises():
+    m = _Leaky(init_hidden=True)
+    m.forward_sequence(torch.randn(T, B, F))
+
+    with pytest.raises(ValueError, match="shape"):
+        m.forward_sequence(torch.randn(T, B + 1, F))
+
+
+def test_hidden_shape_change_validation_off_skips_friendly_error():
+    # With validation disabled the friendly ValueError is skipped; the raw
+    # tensor shape mismatch surfaces from inside the step math instead.
+    m = _Leaky(init_hidden=True)
+    m.fast_sequence_(compile_scan=False)
+    m(torch.randn(B, F))
+
+    with pytest.raises(RuntimeError, match="must match"):
+        m(torch.randn(B + 1, F))
+
+
+def test_hidden_shape_change_error_mentions_fixed_dims():
+    m = _Leaky(init_hidden=True)
+    m(torch.randn(B, F))
+    with pytest.raises(ValueError, match="batch/feature dims must stay fixed"):
+        m(torch.randn(B, F + 1))
 
 
 # ----------------------------------------------------------------------
@@ -1028,6 +1155,50 @@ def test_compile_sequence_scan_explicit_matches_eager():
     assert torch.allclose(out_c[1], out_e[1], atol=1e-5)
 
 
+def test_compile_sequence_scan_explicit_state_none_allocates_per_call():
+    torch._dynamo.reset()
+    torch.manual_seed(0)
+    x_seq = torch.randn(T, B, F)
+
+    compiled = _Leaky(init_hidden=False).compile_sequence_scan(mode="default")
+    eager = _Leaky(init_hidden=False)
+
+    out1 = compiled.forward_sequence(x_seq)
+    out2 = compiled.forward_sequence(x_seq)
+    ref = eager.forward_sequence(x_seq)
+
+    # state=None allocates a fresh initial state inside the compiled call, so
+    # repeated calls must be mutually independent and match eager.
+    assert isinstance(out1, tuple) and isinstance(out2, tuple)
+    for a, b in zip(out1, out2):
+        assert torch.allclose(a, b, atol=1e-5)
+    for a, b in zip(out1, ref):
+        assert torch.allclose(a, b, atol=1e-5)
+
+
+def test_compile_sequence_scan_explicit_provided_state_not_mutated():
+    torch._dynamo.reset()
+    torch.manual_seed(0)
+    x_seq = torch.randn(T, B, F)
+
+    compiled = _Leaky(init_hidden=False).compile_sequence_scan(mode="default")
+    eager = _Leaky(init_hidden=False)
+
+    state = eager.initial_state((B, F), device=x_seq.device, dtype=x_seq.dtype)
+    state_before = tuple(s.clone() for s in state)
+
+    out = compiled.forward_sequence(x_seq, state)
+    ref = eager.forward_sequence(x_seq, state)
+
+    # The scan reads the provided state and returns a new final state; the
+    # caller's tensors are never written in place.
+    assert isinstance(out, tuple)
+    for a, b in zip(out, ref):
+        assert torch.allclose(a, b, atol=1e-5)
+    for given, before in zip(state, state_before):
+        assert torch.equal(given, before)
+
+
 def test_compile_sequence_scan_multi_matches_eager():
     torch._dynamo.reset()
     torch.manual_seed(0)
@@ -1069,6 +1240,36 @@ def test_compile_sequence_scan_allocates_hidden_before_compiled_call():
     assert "out" in m._buffers
 
 
+@pytest.mark.parametrize("t_len", [1, 2, 7, 8, 9, 16])
+def test_compile_sequence_scan_edge_lengths_match_eager(t_len):
+    torch._dynamo.reset()
+    torch.manual_seed(0)
+    x_seq = torch.randn(t_len, B, F)
+
+    compiled = _Leaky(init_hidden=False).compile_sequence_scan(mode="default")
+    eager = _Leaky(init_hidden=False)
+
+    out_c = compiled.forward_sequence(x_seq)
+    out_e = eager.forward_sequence(x_seq)
+    assert isinstance(out_c, tuple)
+    for a, b in zip(out_c, out_e):
+        assert torch.allclose(a, b, atol=1e-5)
+
+
+@pytest.mark.parametrize("t_len", [1, 2, 7, 8, 9, 16])
+def test_compile_sequence_scan_edge_lengths_hidden_match_eager(t_len):
+    torch._dynamo.reset()
+    torch.manual_seed(0)
+    x_seq = torch.randn(t_len, B, F)
+
+    compiled = _Leaky(init_hidden=True).compile_sequence_scan(mode="default")
+    eager = _Leaky(init_hidden=True)
+
+    out_c = compiled.forward_sequence(x_seq)
+    out_e = eager.forward_sequence(x_seq)
+    assert torch.allclose(out_c, out_e, atol=1e-5)
+
+
 @pytest.mark.slow
 @pytest.mark.skipif(
     not torch.cuda.is_available(),
@@ -1085,6 +1286,35 @@ def test_compile_reduce_overhead_held_output_survives():
 
     assert torch.equal(first[0], second[0])
     assert torch.equal(first[1], second[1])
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(
+    not torch.cuda.is_available(),
+    reason="CUDA required for CUDA-graph (reduce-overhead) compile",
+)
+def test_compile_reduce_overhead_state_none_correct_and_held_survives():
+    torch._dynamo.reset()
+    torch.manual_seed(0)
+    x_seq = torch.randn(T, B, F, device="cuda")
+
+    compiled = _Leaky(init_hidden=False).to("cuda").compile_sequence_scan(
+        mode="reduce-overhead"
+    )
+    eager = _Leaky(init_hidden=False).to("cuda")
+
+    ref = eager.forward_sequence(x_seq)
+    first = compiled.forward_sequence(x_seq)
+    second = compiled.forward_sequence(x_seq)
+
+    # state=None allocates the initial state inside the compiled graph; results
+    # must match eager, repeated calls must be independent, and graph-mode
+    # cloning must keep previously returned tensors (incl. the state) intact.
+    assert isinstance(first, tuple)
+    for a, b in zip(first, ref):
+        assert torch.allclose(a, b, atol=1e-5)
+    for a, b in zip(first, second):
+        assert torch.equal(a, b)
 
 
 def test_compile_clone_gating_default_no_clone(monkeypatch):
@@ -1286,6 +1516,13 @@ def test_repr_includes_size_and_init_hidden():
     r = repr(_Leaky(size=16, init_hidden=True))
     assert "size=16" in r
     assert "init_hidden=True" in r
+
+
+def test_size_is_metadata_only_does_not_affect_allocation():
+    m = _Leaky(size=16, init_hidden=True)
+    x = torch.randn(3, 7)
+    m(x)
+    assert m._buffers["mem"].shape == x.shape
 
 
 def test_repr_omits_size_when_none():

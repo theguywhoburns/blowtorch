@@ -108,6 +108,14 @@ class _CustomResetProbe(_ResetProbe):
         return _custom_reset(mem, spk)
 
 
+class _CustomStringResetProbe(_ResetProbe):
+    class Specs:
+        mem = SnnModule.StateSpec(reset=Reset.custom("_string_reset"))
+
+    def _string_reset(self, mem, spk):
+        return mem * (1 + spk)
+
+
 def test_reset_mechanism_pure_functions():
     mem = torch.tensor(1.5)
     spk = torch.tensor(1.0)
@@ -265,6 +273,44 @@ def test_reset_custom():
         (torch.full((2,), 3.0),),
     )
     assert torch.allclose(next_mem, torch.tensor([3.0, 6.0]))
+
+
+def test_reset_custom_string_method_name():
+    m = _CustomStringResetProbe()
+    _, (next_mem,) = m.step_state(
+        torch.tensor([-1.0, 2.0]),
+        (torch.full((2,), 3.0),),
+    )
+    assert torch.allclose(next_mem, torch.tensor([3.0, 6.0]))
+
+
+def test_reset_custom_missing_method_raises():
+    class _Probe(_ResetProbe):
+        class Specs:
+            mem = SnnModule.StateSpec(reset=Reset.custom("_does_not_exist"))
+
+    with pytest.raises(ValueError, match="not a method"):
+        _Probe()
+
+
+def test_reset_custom_lambda_raises():
+    class _Probe(_ResetProbe):
+        class Specs:
+            mem = SnnModule.StateSpec(reset=Reset.custom(lambda mem, spk: mem))
+
+    with pytest.raises(ValueError, match="named method or a method-name string"):
+        _Probe()
+
+
+def test_reset_custom_non_callable_target_raises():
+    class _Probe(_ResetProbe):
+        not_a_method = 42
+
+        class Specs:
+            mem = SnnModule.StateSpec(reset=Reset.custom("not_a_method"))
+
+    with pytest.raises(ValueError, match="not a method"):
+        _Probe()
 
 
 def test_reset_target_string_name():
