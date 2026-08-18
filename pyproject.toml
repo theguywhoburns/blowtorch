@@ -63,6 +63,10 @@ bench = [
     "norse>=0.1.1",
     "snntorch>=0.8.1",
 ]
+examples = [
+    "matplotlib>=3.10",
+    "torchvision>=0.28.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

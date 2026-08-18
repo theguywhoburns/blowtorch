@@ -1,4 +1,5 @@
 from .base import *
+from . import nn
 
 __all__ = [
     "BlowtorchModule",

@@ -38,6 +38,7 @@ Plain PyTorch only. No custom CUDA kernels; the speed comes from
 - [Resets](docs/resets.md)
 - [Constraints](docs/constraints.md)
 - [Sequence scans](docs/sequence-scan.md)
+- [Sequential networks](docs/sequential.md)
 
 ## Install
 
@@ -212,6 +213,42 @@ Run the benchmark yourself:
 
 ```bash
 uv run --group bench python benchmarks/bench_all_vs.py --steps 1000
+```
+
+Results are printed to the console and exported to a CSV under
+`benchmarks/results/`.
+
+## Bench vs snnTorch / Norse (multilayer LIF network)
+
+**NOTE:** Benchmarks ran on `NVIDIA GeForce RTX 3050 Laptop GPU 4G`,
+T=1000, B=32, F=512, network `Linear(512,512) -> LIF x4 -> Linear(512,10) ->
+LIF` (Linear-light, LIF-heavy).
+
+| library             | mode       | compiled | ms     | steps/s | peak MiB | vs blowtorch seq eager |
+| ------------------- | ---------- | -------- | ------ | ------- | -------- | ---------------------- |
+| blowtorch Sequential| seq        | eager    | 229.41 | 4,359   | 74.4     | 1.00x                  |
+| blowtorch Sequential| seq        | compile  | 22.74  | 43,985  | 79.5     | 0.10x                  |
+| blowtorch Sequential| step       | eager    | 234.79 | 4,259   | 73.7     | 1.02x                  |
+| snntorch            | step loop  | eager    | 627.84 | 1,593   | 76.1     | 2.74x                  |
+| snntorch            | step loop  | compile  | 118.26 | 8,456   | 77.2     | 0.52x                  |
+| norse               | seq        | eager    | 533.64 | 1,874   | 263.2    | 2.33x                  |
+| norse               | seq        | compile  | 31.60  | 31,645  | 260.1    | 0.14x                  |
+
+The whole network compiles as **one fused scan** (22.7 ms): ~10x faster than
+blowtorch's own eager sequence, ~1.4x faster than compiled Norse (31.6 ms),
+~2.3x faster than eager Norse, and ~2.7x faster than eager snnTorch. The
+compiled stack also uses ~3.3x less GPU memory than Norse (79.5 vs 260.1 MiB).
+
+snnTorch has no sequence module, so it runs the canonical per-step loop with
+explicit membrane state (the `step loop` rows). Treat snnTorch's compiled row
+with suspicion: torch.compile gets stuck on the Python state-threading loop
+(118 ms - worse than the eager loop would suggest; its eager loop is the fair
+comparison).
+
+Run the benchmark yourself:
+
+```bash
+uv run --group bench python benchmarks/bench_multilayer_sequential_vs_all.py --steps 1000
 ```
 
 Results are printed to the console and exported to a CSV under

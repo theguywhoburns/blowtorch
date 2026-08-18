@@ -299,6 +299,80 @@ class StateSpec:
 
 Spec = Union[OutputSpec, StateSpec]
 
+# Time-major scan over a pure step function.
+
+
+def sequence_scan(
+    step: Callable[[Tensor, tuple[Tensor, ...]], tuple[Tensor, ...]],
+    x_seq: Tensor,
+    state0: tuple[Tensor, ...],
+    n_outputs: int,
+) -> tuple[Tensor, ...]:
+    """
+    Scan a pure step function over a time-major input.
+
+    ``step`` is ``(x, state) -> (*outputs, *next_state)``: the first
+    ``n_outputs`` tensors are outputs, the rest become the state for the next
+    step. Returns ``(*ys, *final_state)`` where each ``ys[k]`` is a
+    preallocated ``(T, *output_shape)`` buffer.
+
+    In eager this batches ``_SEQUENCE_SCAN_CHUNK`` steps into one
+    ``index_copy_`` scatter so peak memory stays at input + output. Under
+    ``torch.compile`` it lowers to a flat fused loop; the whole scan becomes a
+    single graph.
+    """
+    T = x_seq.shape[0]
+
+    out0 = step(x_seq[0], state0)
+    assert isinstance(out0, tuple)
+
+    ys = tuple(
+        torch.empty((T, *o.shape), dtype=o.dtype, device=o.device)
+        for o in out0[:n_outputs]
+    )
+
+    if torch.compiler.is_compiling():
+        for k, y in enumerate(ys):
+            y.index_copy_(0, torch.tensor([0], device=y.device), out0[k].unsqueeze(0))
+
+        cur = out0[n_outputs:]
+
+        for t in range(1, T):
+            out = step(x_seq[t], cur)
+
+            for k, y in enumerate(ys):
+                y.index_copy_(
+                    0,
+                    torch.tensor([t], device=y.device),
+                    out[k].unsqueeze(0),
+                )
+
+            cur = out[n_outputs:]
+    else:
+        for k, y in enumerate(ys):
+            y[0] = out0[k]
+
+        cur = out0[n_outputs:]
+        idx = torch.arange(T, device=x_seq.device)
+
+        for lo in range(1, T, _SEQUENCE_SCAN_CHUNK):
+            hi = min(lo + _SEQUENCE_SCAN_CHUNK, T)
+
+            chunks: list[list[Tensor]] = [[] for _ in range(n_outputs)]
+
+            for t in range(lo, hi):
+                out = step(x_seq[t], cur)
+
+                for k in range(n_outputs):
+                    chunks[k].append(out[k])
+
+                cur = out[n_outputs:]
+
+            for k, y in enumerate(ys):
+                y.index_copy_(0, idx[lo:hi], torch.stack(chunks[k]))
+
+    return (*ys, *cur)
+
 
 # Generic Blowtorch module
 
@@ -888,7 +962,9 @@ class BlowtorchModule(nn.Module):
 
     def _check_step_output(self, out: StepOutput) -> None:
         if not isinstance(out, tuple):
-            raise TypeError(
+            # Runtime contract check: a user-authored _step may return a
+            # non-tuple despite the annotation, so this branch is reachable.
+            raise TypeError(  # pyright: ignore[reportUnreachable]
                 f"{type(self).__name__}._step must return a tuple of tensors"
             )
 
@@ -909,23 +985,16 @@ class BlowtorchModule(nn.Module):
             self._buffers[name] = t
 
     def _hidden_step(self, x: Tensor) -> StepOutput:
+        """
+        One hidden-mode step: run the pure explicit step on the current hidden
+        buffers, then store the results back into the buffers.
+        """
         state = tuple(getattr(self, name) for name in self._bt_state_names)
 
-        out = self._step(x, *state)
+        out = self._forward_explicit(x, *state)
 
-        if self.validate:
-            self._check_step_output(out)
-
-        if isinstance(out, tuple):
-            spk = out[0]
-            pre_state = out[1:]
-            next_state = self._bt_apply_resets(pre_state, spk)
-            final_out = (spk,) + tuple(next_state)
-        else:
-            final_out = out
-
-        self._store_hidden_outputs(final_out)
-        return final_out
+        self._store_hidden_outputs(out)
+        return out
 
     def _forward_hidden(self, x: Tensor) -> Tensor | StepOutput:
         if not self._bt_allocated:
@@ -1252,55 +1321,29 @@ class BlowtorchModule(nn.Module):
         elif self.validate:
             self._check_hidden_input_shape(x_seq[0])
 
-        T = x_seq.shape[0]
         n_outputs = len(self._bt_output_names)
+        state0 = tuple(getattr(self, name) for name in self._bt_state_names)
 
-        out0 = self._hidden_step(x_seq[0])
-
-        # Preallocate one (T, B, F) buffer per output stream.
-        ys = tuple(
-            torch.empty((T, *o.shape), dtype=o.dtype, device=o.device)
-            for o in out0[:n_outputs]
+        # Hidden mode is an explicit scan plus buffer bookkeeping at the
+        # edges: the scan itself is pure, so it can share sequence_scan with
+        # explicit mode (and with multi-module containers).
+        result = sequence_scan(
+            lambda x, s: self._forward_explicit(x, *s),
+            x_seq,
+            state0,
+            n_outputs,
         )
 
-        # Write each step's outputs into the preallocated buffers.
-        # Under torch.compile, constant-index index_copy_ lowers to a plain
-        # contiguous store fused into that step's kernel; in eager, batch K
-        # steps into one scatter so we keep eager speed without a (T, B, F)
-        # transient list + torch.stack copy.
-        if torch.compiler.is_compiling():
-            for k, y in enumerate(ys):
-                y.index_copy_(0, torch.tensor([0], device=y.device), out0[k].unsqueeze(0))
+        ys = result[:n_outputs]
 
-            for t in range(1, T):
-                out = self._hidden_step(x_seq[t])
+        for name, t in zip(self._bt_state_names, result[n_outputs:]):
+            self._buffers[name] = t
 
-                for k, y in enumerate(ys):
-                    y.index_copy_(
-                        0,
-                        torch.tensor([t], device=y.device),
-                        out[k].unsqueeze(0),
-                    )
-        else:
-            for k, y in enumerate(ys):
-                y[0] = out0[k]
-
-            idx = torch.arange(T, device=x_seq.device)
-
-            for lo in range(1, T, _SEQUENCE_SCAN_CHUNK):
-                hi = min(lo + _SEQUENCE_SCAN_CHUNK, T)
-
-                # Run each step once, collecting one list per output stream.
-                chunks: list[list[Tensor]] = [[] for _ in range(n_outputs)]
-
-                for t in range(lo, hi):
-                    out = self._hidden_step(x_seq[t])
-
-                    for k in range(n_outputs):
-                        chunks[k].append(out[k])
-
-                for k, y in enumerate(ys):
-                    y.index_copy_(0, idx[lo:hi], torch.stack(chunks[k]))
+        for name, spec, t in zip(self._bt_output_names, self._bt_output_specs, ys):
+            last = t[-1] if t.dim() > 0 else t
+            if not spec.differentiable:
+                last = last.detach()
+            self._buffers[name] = last
 
         if n_outputs == 1:
             return ys[0]
@@ -1315,67 +1358,19 @@ class BlowtorchModule(nn.Module):
         if state is None:
             state = self.initial_state_for_sequence(x_seq)
 
-        out = self.forward(x_seq[0], *state)
-        assert isinstance(out, tuple)
-
         n_outputs = len(self._bt_output_names)
-        y0 = out[:n_outputs]
 
-        ys = tuple(
-            torch.empty(
-                (x_seq.shape[0], *o.shape),
-                dtype=o.dtype,
-                device=o.device,
-            )
-            for o in y0
+        result = sequence_scan(
+            lambda x, s: self._forward_explicit(x, *s),
+            x_seq,
+            state,
+            n_outputs,
         )
 
-        cur = out[n_outputs:]
-
-        # Same preallocated-output collection as _hidden_sequence_scan.
-        if torch.compiler.is_compiling():
-            for k, y in enumerate(ys):
-                y.index_copy_(0, torch.tensor([0], device=y.device), y0[k].unsqueeze(0))
-
-            for t in range(1, x_seq.shape[0]):
-                out = self.forward(x_seq[t], *cur)
-                assert isinstance(out, tuple)
-
-                for k, y in enumerate(ys):
-                    y.index_copy_(
-                        0,
-                        torch.tensor([t], device=y.device),
-                        out[k].unsqueeze(0),
-                    )
-
-                cur = out[n_outputs:]
-        else:
-            for k, y in enumerate(ys):
-                y[0] = y0[k]
-
-            idx = torch.arange(x_seq.shape[0], device=x_seq.device)
-
-            for lo in range(1, x_seq.shape[0], _SEQUENCE_SCAN_CHUNK):
-                hi = min(lo + _SEQUENCE_SCAN_CHUNK, x_seq.shape[0])
-
-                chunks: list[list[Tensor]] = [[] for _ in range(n_outputs)]
-
-                for t in range(lo, hi):
-                    out = self.forward(x_seq[t], *cur)
-                    assert isinstance(out, tuple)
-
-                    for k in range(n_outputs):
-                        chunks[k].append(out[k])
-
-                    cur = out[n_outputs:]
-
-                for k, y in enumerate(ys):
-                    y.index_copy_(0, idx[lo:hi], torch.stack(chunks[k]))
-
         if n_outputs == 1:
-            return (ys[0], *cur)
+            return (result[0], *result[1:])
 
-        return (*ys, *cur)
+        return result
 
     def compile_sequence_scan(self, **kwargs: Any) -> BlowtorchModule:
         """
