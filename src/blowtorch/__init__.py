@@ -5,6 +5,8 @@ __all__ = [
     "BlowtorchModule",
     "Param",
     "ParamSpec",
+    "Input",
+    "InputSpec",
     "OutputSpec",
     "StateSpec",
     "extend_specs",

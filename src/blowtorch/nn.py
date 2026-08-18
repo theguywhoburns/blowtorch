@@ -368,7 +368,12 @@ class Sequential(nn.Module):
         if state is None:
             state = self.initial_state_for_sequence(x_seq)
 
-        result = sequence_scan(self._step, x_seq, state, self._n_outputs)
+        result = sequence_scan(
+            lambda inputs, s: self._step(inputs[0], s),
+            (x_seq,),
+            state,
+            self._n_outputs,
+        )
         return (result[0], *result[1:])
 
     def _hidden_sequence_scan(self, x_seq: Tensor) -> Tensor:
@@ -378,8 +383,8 @@ class Sequential(nn.Module):
             self._check_hidden_input_shape(x_seq[0])
 
         result = sequence_scan(
-            self._step,
-            x_seq,
+            lambda inputs, s: self._step(inputs[0], s),
+            (x_seq,),
             self._states(),
             self._n_outputs,
         )
@@ -391,9 +396,9 @@ class Sequential(nn.Module):
     def compile_sequence_scan(self, **kwargs: Any) -> "Sequential":
         needs_clone = kwargs.get("mode") in ("reduce-overhead", "max-autotune")
         compiled = torch.compile(
-            lambda x_seq, state: sequence_scan(
-                self._step,
-                x_seq,
+            lambda inputs_seq, state: sequence_scan(
+                lambda inputs, s: self._step(inputs[0], s),
+                inputs_seq,
                 state,
                 self._n_outputs,
             ),
@@ -411,7 +416,7 @@ class Sequential(nn.Module):
             elif state is None:
                 state = self.initial_state_for_sequence(x_seq)
 
-            out = compiled(x_seq, state)
+            out = compiled((x_seq,), state)
 
             if self.init_hidden:
                 self._bt_states = list(out[self._n_outputs :])
