@@ -21,6 +21,11 @@ Plain PyTorch only. No custom CUDA kernels; the speed comes from
 - **Two execution modes** - hidden (`init_hidden=True`, module owns its
   state buffers) and explicit (caller owns state; a pure function of
   `(x, *state)`).
+- **Multi-input modules** - declare a nested `Inputs` class and `_step`
+  receives the inputs positionally (e.g. an MCN's basal and apical inputs).
+  Call sites accept a single tensor, a tuple/list, or a dict keyed by input
+  name, and `StateSpec(shape=...)` can follow any named input (added in
+  e4cab2c).
 - **Declarative resets** - `Reset.subtract` / `zero` / `hard_zero` / `set` /
   `add` / `custom`, applied per-state after `_step` in both modes.
 - **Surrogate gradients** - per-module `spike_grad=` callable; defaults to a
@@ -29,8 +34,11 @@ Plain PyTorch only. No custom CUDA kernels; the speed comes from
 - **Sequence scans** - `forward_sequence` on `(time, batch, features)` with a
   chunked eager scan plus `fast_sequence_()` / `compile_sequence_scan()` to
   compile the whole scan through `torch.compile`.
+- **Population encoding** - `population_encode` turns scalar quantile
+  fractions into Poisson population spike trains via Gaussian receptive
+  fields (`blowtorch.util.population_encoding`).
 - **Included neurons** - `LIF`, `AdEx`, `ALIF`, `HH`, `Izhikevich`, `SRM0`,
-  `TwoCompartment`.
+  `TwoCompartment`, `MCN` (three-compartment basal/apical/soma).
 
 ## Docs
 
