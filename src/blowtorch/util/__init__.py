@@ -1,3 +1,4 @@
+from .population_encoding import population_encode
 from .surrogate_gradients import (
     atan_surrogate,
     default_spike_grad,
@@ -16,4 +17,5 @@ __all__ = [
     "triangular_surrogate",
     "fast_sigmoid_surrogate",
     "positive",
+    "population_encode",
 ]

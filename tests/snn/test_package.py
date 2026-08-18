@@ -4,6 +4,7 @@ from blowtorch.snn.neurons.ALIF import ALIF
 from blowtorch.snn.neurons.HH import HH
 from blowtorch.snn.neurons.Izhikevich import Izhikevich
 from blowtorch.snn.neurons.LIF import LIF
+from blowtorch.snn.neurons.MCN import MCN
 from blowtorch.snn.neurons.SRM0 import SRM0
 from blowtorch.snn.neurons.TwoCompartment import TwoCompartment
 
@@ -28,6 +29,7 @@ def test_snn_public_exports_match_all():
         "HH",
         "Izhikevich",
         "LIF",
+        "MCN",
         "SRM0",
         "TwoCompartment",
     ]
@@ -42,6 +44,7 @@ def test_snn_public_exports_match_all():
     assert blowtorch.snn.ALIF is ALIF
     assert blowtorch.snn.Izhikevich is Izhikevich
     assert blowtorch.snn.SRM0 is SRM0
+    assert blowtorch.snn.MCN is MCN
     assert blowtorch.snn.TwoCompartment is TwoCompartment
 
 
@@ -55,5 +58,6 @@ def test_snn_star_import_exposes_lif():
     assert ns["HH"] is HH
     assert ns["Izhikevich"] is Izhikevich
     assert ns["SRM0"] is SRM0
+    assert ns["MCN"] is MCN
     assert ns["TwoCompartment"] is TwoCompartment
     assert ns["SnnModule"] is blowtorch.snn.SnnModule

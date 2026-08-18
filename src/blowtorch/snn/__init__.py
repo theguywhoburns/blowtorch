@@ -11,6 +11,7 @@ from .neurons import (
     HH,
     Izhikevich,
     LIF,
+    MCN,
     SRM0,
     TwoCompartment,
 )
@@ -34,6 +35,7 @@ __all__ = [
     "HH",
     "Izhikevich",
     "LIF",
+    "MCN",
     "SRM0",
     "TwoCompartment",
 ]
