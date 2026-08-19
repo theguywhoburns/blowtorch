@@ -2,8 +2,8 @@
 
 A declarative spiking neural network library for PyTorch research. Neurons
 are described by plain nested classes (`Params`, `Specs`) and a single
-`_step`; everything else - parameter creation, constraints, resets, hidden
-state, and sequence scans - is handled automatically.
+`_step`; the rest - parameter creation, constraints, resets, hidden state,
+and sequence scans - is automatic.
 
 Plain PyTorch only. No custom CUDA kernels; the speed comes from
 `torch.compile` over pure Python math.
@@ -11,8 +11,8 @@ Plain PyTorch only. No custom CUDA kernels; the speed comes from
 ## Features
 
 - **Declarative neurons** - parameters and state are plain class attributes;
-  write `_step(x, *state)` and get `forward`, `step_state`, state factories,
-  and `forward_sequence` for free.
+  write `_step(x, *state)`; `forward`, `step_state`, the state factories, and
+  `forward_sequence` follow.
 - **Learnable params & constraints** - every `Param` can be toggled with
   `learnable_<name>=...` / `force_learn_<name>=...` and wrapped in a
   constraint (e.g. `clamp_unit_interval`, `clamp_positive`) applied on the
@@ -198,20 +198,19 @@ T=1000, B=32, F=1024.
 | norse         | step          | eager    | 111.96 | 8,932   | 128.0    | 2.70x                  |
 | norse         | step          | compile  | 41.83  | 23,907  | 127.3    | 1.01x                  |
 
-Even **non-compiled** blowtorch (41.4 ms) beats **eager** snnTorch
-(119.8 ms, ~2.9x) and Norse (112.3 ms, ~2.7x). The compiled scan (3.7-3.9 ms)
-is ~11x faster than blowtorch's own eager scan, ~12x faster than compiled
-snnTorch, and ~1.4x faster than compiled Norse (5.3 ms) - all with zero
-custom kernels, pure Python math through `torch.compile`.
+Even uncompiled, blowtorch (41.4 ms) beats eager snnTorch (119.8 ms, ~2.9x)
+and eager Norse (112.3 ms, ~2.7x). The compiled scan (3.7-3.9 ms) is ~11x
+faster than blowtorch's own eager scan, ~12x faster than compiled snnTorch,
+and ~1.4x faster than compiled Norse (5.3 ms). No custom kernels; the speed
+is pure Python math through `torch.compile`.
 
-Compiling the **per-step loop** barely helps (35.5 vs 40.1 ms): Python
-dispatch per step dominates. Compiling the whole **sequence scan** is where
-the win is, because the scan fuses the full unrolled graph.
+Compiling the per-step loop barely helps (35.5 vs 40.1 ms): per-step Python
+dispatch dominates. Compiling the whole sequence scan wins because it fuses
+the unrolled graph into one call.
 
 Memory is comparable across frameworks in the same mode. Sequence mode holds
-the full `(T, B, F)` spike stack (blowtorch ~252 MiB vs snnTorch/Norse
-~377 MiB - blowtorch also holds the least while returning the same output);
-step mode only holds the state (~127 MiB across all three).
+the full `(T, B, F)` spike stack (blowtorch ~252 MiB vs ~377 MiB for
+snnTorch/Norse); step mode holds only the state (~127 MiB across all three).
 
 > **Ratio convention**: `bench_all_vs.py` prints `framework_time / blowtorch_seq_eager_time` as the trailing `(N.Nx)` factor. A value **below
 > 1.0 means the framework is faster** than blowtorch LIF seq eager. The base
@@ -242,16 +241,15 @@ LIF` (Linear-light, LIF-heavy).
 | norse               | seq        | eager    | 533.64 | 1,874   | 263.2    | 2.33x                  |
 | norse               | seq        | compile  | 31.60  | 31,645  | 260.1    | 0.14x                  |
 
-The whole network compiles as **one fused scan** (22.7 ms): ~10x faster than
+The whole network compiles as one fused scan (22.7 ms): ~10x faster than
 blowtorch's own eager sequence, ~1.4x faster than compiled Norse (31.6 ms),
 ~2.3x faster than eager Norse, and ~2.7x faster than eager snnTorch. The
 compiled stack also uses ~3.3x less GPU memory than Norse (79.5 vs 260.1 MiB).
 
 snnTorch has no sequence module, so it runs the canonical per-step loop with
-explicit membrane state (the `step loop` rows). Treat snnTorch's compiled row
-with suspicion: torch.compile gets stuck on the Python state-threading loop
-(118 ms - worse than the eager loop would suggest; its eager loop is the fair
-comparison).
+explicit membrane state (the `step loop` rows). Its compiled row (118 ms) is
+not representative: torch.compile stalls on the Python state-threading loop.
+The eager loop is the fair comparison.
 
 Run the benchmark yourself:
 

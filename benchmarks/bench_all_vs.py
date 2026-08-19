@@ -41,7 +41,7 @@ def parse_args() -> argparse.Namespace:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    p.add_argument("--steps", type=int, default=10000, help="timesteps per run (default 1000)")
+    p.add_argument("--steps", type=int, default=1000, help="timesteps per run (default 1000)")
     p.add_argument("--batch", type=int, default=32)
     p.add_argument("--features", type=int, default=1024, help="feature dim; compile pays off at >=512")
     p.add_argument("--reps", type=int, default=7)

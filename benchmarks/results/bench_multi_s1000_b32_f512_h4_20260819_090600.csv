@@ -1,0 +1,8 @@
+name,variant,compiled,ms_per_step,steps_per_sec
+blowtorch Sequential,seq,False,0.218860,4569
+blowtorch Sequential,seq,True,0.022742,43972
+blowtorch Sequential,step,False,0.226654,4412
+snntorch,step loop,False,0.665413,1503
+snntorch,step loop,True,0.118363,8449
+norse,seq,False,0.560260,1785
+norse,seq,True,0.025753,38831

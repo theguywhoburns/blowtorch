@@ -1,0 +1,15 @@
+name,variant,compiled,ms_per_step,steps_per_sec
+blowtorch LIF,seq hidden,False,0.042328,23625
+blowtorch LIF,seq hidden,True,0.003687,271248
+blowtorch LIF,seq explicit,False,0.041258,24238
+blowtorch LIF,seq explicit,True,0.003481,287307
+blowtorch LIF,step hidden,False,0.045646,21908
+blowtorch LIF,step hidden,True,0.033917,29483
+blowtorch LIF,step explicit,False,0.042620,23463
+blowtorch LIF,step explicit,True,0.032375,30888
+snntorch,seq,False,0.113610,8802
+snntorch,seq,True,0.043128,23187
+norse,seq,False,0.113719,8794
+norse,seq,True,0.004361,229282
+norse,step,False,0.107022,9344
+norse,step,True,0.040619,24619
