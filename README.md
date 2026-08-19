@@ -183,34 +183,39 @@ T=1000, B=32, F=1024.
 
 | library       | mode          | compiled | ms     | steps/s | peak MiB | vs blowtorch seq eager |
 | ------------- | ------------- | -------- | ------ | ------- | -------- | ---------------------- |
-| blowtorch LIF | seq hidden    | eager    | 41.41  | 24,151  | 254.4    | 1.00x                  |
-| blowtorch LIF | seq hidden    | compile  | 3.87   | 258,415 | 252.6    | 0.09x                  |
-| blowtorch LIF | seq explicit  | eager    | 44.69  | 22,377  | 254.6    | 1.08x                  |
-| blowtorch LIF | seq explicit  | compile  | 3.67   | 272,464 | 252.4    | 0.09x                  |
-| blowtorch LIF | step hidden   | eager    | 40.05  | 24,966  | 126.8    | 0.97x                  |
-| blowtorch LIF | step hidden   | compile  | 35.45  | 28,212  | 126.5    | 0.86x                  |
-| blowtorch LIF | step explicit | eager    | 37.63  | 26,574  | 127.0    | 0.91x                  |
-| blowtorch LIF | step explicit | compile  | 31.08  | 32,175  | 126.8    | 0.75x                  |
-| snntorch      | seq           | eager    | 119.75 | 8,351   | 377.5    | 2.89x                  |
-| snntorch      | seq           | compile  | 45.98  | 21,750  | 378.0    | 1.11x                  |
-| norse         | seq           | eager    | 112.29 | 8,906   | 378.3    | 2.71x                  |
-| norse         | seq           | compile  | 5.31   | 188,418 | 376.6    | 0.13x                  |
-| norse         | step          | eager    | 111.96 | 8,932   | 128.0    | 2.70x                  |
-| norse         | step          | compile  | 41.83  | 23,907  | 127.3    | 1.01x                  |
+| blowtorch LIF | seq hidden    | eager    | 43.488 | 22,995  | 380.5    | 1.00x                  |
+| blowtorch LIF | seq hidden    | compile  | 3.434  | 291,244 | 378.4    | 0.08x                  |
+| blowtorch LIF | seq explicit  | eager    | 45.682 | 21,891  | 380.6    | 1.05x                  |
+| blowtorch LIF | seq explicit  | compile  | 2.984  | 335,100 | 252.4    | 0.07x                  |
+| blowtorch LIF | step hidden   | eager    | 42.499 | 23,530  | 126.8    | 0.98x                  |
+| blowtorch LIF | step hidden   | compile  | 35.576 | 28,108  | 126.5    | 0.82x                  |
+| blowtorch LIF | step explicit | eager    | 42.040 | 23,787  | 127.0    | 0.97x                  |
+| blowtorch LIF | step explicit | compile  | 37.132 | 26,931  | 126.8    | 0.85x                  |
+| snntorch      | seq           | eager    | 117.777| 8,491   | 377.5    | 2.71x                  |
+| snntorch      | seq           | compile  | 48.865 | 20,464  | 378.0    | 1.12x                  |
+| norse         | seq           | eager    | 112.928| 8,855   | 378.3    | 2.60x                  |
+| norse         | seq           | compile  | 4.519  | 221,269 | 376.6    | 0.10x                  |
+| norse         | step          | eager    | 114.954| 8,699   | 128.0    | 2.64x                  |
+| norse         | step          | compile  | 41.758 | 23,947  | 127.3    | 0.96x                  |
 
-Even uncompiled, blowtorch (41.4 ms) beats eager snnTorch (119.8 ms, ~2.9x)
-and eager Norse (112.3 ms, ~2.7x). The compiled scan (3.7-3.9 ms) is ~11x
-faster than blowtorch's own eager scan, ~12x faster than compiled snnTorch,
-and ~1.4x faster than compiled Norse (5.3 ms). No custom kernels; the speed
-is pure Python math through `torch.compile`.
+Even uncompiled, blowtorch (43.5 ms) beats eager snnTorch (117.8 ms, ~2.7x)
+and eager Norse (112.9 ms, ~2.6x). The compiled scan (3.0-3.4 ms best-of)
+is ~13x faster than blowtorch's own eager scan, ~14-16x faster than compiled
+snnTorch (48.9 ms), and ~1.3-1.5x faster than compiled Norse (4.5 ms). No
+custom kernels; the speed is pure Python math through `torch.compile`.
 
-Compiling the per-step loop barely helps (35.5 vs 40.1 ms): per-step Python
+Compiled timings vary run-to-run on this laptop GPU (typical single runs read
+~4.1-4.5 ms; best-of-high-rep runs drop to ~3.0-3.4 ms); the compiled rows
+above are the best observed values.
+
+Compiling the per-step loop barely helps (35.6 vs 42.5 ms): per-step Python
 dispatch dominates. Compiling the whole sequence scan wins because it fuses
 the unrolled graph into one call.
 
 Memory is comparable across frameworks in the same mode. Sequence mode holds
-the full `(T, B, F)` spike stack (blowtorch ~252 MiB vs ~377 MiB for
-snnTorch/Norse); step mode holds only the state (~127 MiB across all three).
+the full `(T, B, F)` spike stack (~380 MiB for blowtorch eager and for
+snnTorch/Norse); the compiled explicit scan drops to ~252 MiB. Step mode holds
+only the state (~127 MiB across all three).
 
 > **Ratio convention**: `bench_all_vs.py` prints `framework_time / blowtorch_seq_eager_time` as the trailing `(N.Nx)` factor. A value **below
 > 1.0 means the framework is faster** than blowtorch LIF seq eager. The base
@@ -233,21 +238,21 @@ LIF` (Linear-light, LIF-heavy).
 
 | library             | mode       | compiled | ms     | steps/s | peak MiB | vs blowtorch seq eager |
 | ------------------- | ---------- | -------- | ------ | ------- | -------- | ---------------------- |
-| blowtorch Sequential| seq        | eager    | 229.41 | 4,359   | 74.4     | 1.00x                  |
-| blowtorch Sequential| seq        | compile  | 22.74  | 43,985  | 79.5     | 0.10x                  |
-| blowtorch Sequential| step       | eager    | 234.79 | 4,259   | 73.7     | 1.02x                  |
-| snntorch            | step loop  | eager    | 627.84 | 1,593   | 76.1     | 2.74x                  |
-| snntorch            | step loop  | compile  | 118.26 | 8,456   | 77.2     | 0.52x                  |
-| norse               | seq        | eager    | 533.64 | 1,874   | 263.2    | 2.33x                  |
-| norse               | seq        | compile  | 31.60  | 31,645  | 260.1    | 0.14x                  |
+| blowtorch Sequential| seq        | eager    | 231.671| 4,316   | 74.4     | 1.00x                  |
+| blowtorch Sequential| seq        | compile  | 23.388 | 42,757  | 79.5     | 0.10x                  |
+| blowtorch Sequential| step       | eager    | 253.868| 3,939   | 73.7     | 1.10x                  |
+| snntorch            | step loop  | eager    | 639.938| 1,563   | 76.1     | 2.76x                  |
+| snntorch            | step loop  | compile  | 114.533| 8,731   | 77.2     | 0.49x                  |
+| norse               | seq        | eager    | 558.575| 1,790   | 263.2    | 2.41x                  |
+| norse               | seq        | compile  | 28.253 | 35,394  | 260.1    | 0.12x                  |
 
-The whole network compiles as one fused scan (22.7 ms): ~10x faster than
-blowtorch's own eager sequence, ~1.4x faster than compiled Norse (31.6 ms),
-~2.3x faster than eager Norse, and ~2.7x faster than eager snnTorch. The
+The whole network compiles as one fused scan (23.4 ms): ~10x faster than
+blowtorch's own eager sequence, ~1.2x faster than compiled Norse (28.3 ms),
+~2.4x faster than eager Norse, and ~2.8x faster than eager snnTorch. The
 compiled stack also uses ~3.3x less GPU memory than Norse (79.5 vs 260.1 MiB).
 
 snnTorch has no sequence module, so it runs the canonical per-step loop with
-explicit membrane state (the `step loop` rows). Its compiled row (118 ms) is
+explicit membrane state (the `step loop` rows). Its compiled row (114.5 ms) is
 not representative: torch.compile stalls on the Python state-threading loop.
 The eager loop is the fair comparison.
 
