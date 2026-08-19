@@ -17,7 +17,16 @@ def _restore_global_validation():
 
 @pytest.fixture()
 def device():
-    """A device for state-factory tests: cuda when available, else cpu."""
+    """A device for state-factory tests: the available accelerator, else cpu.
+
+    Detects backends in order. ``torch.cuda`` is the backend on CUDA *and*
+    ROCm/HIP builds, so the cuda branch covers both NVIDIA and AMD.
+    """
     import torch
 
-    return torch.device("cuda") if torch.cuda.is_available() else "cpu"
+    for kind in ("cuda", "xpu", "mps", "npu", "mtia"):
+        backend = getattr(torch, kind, None)
+        if backend is not None and backend.is_available():
+            return torch.device(kind)
+
+    return torch.device("cpu")
