@@ -4,8 +4,12 @@ import blowtorch
 def test_public_exports_match_all():
     expected = [
         "BlowtorchModule",
+        "Tensor",
+        "StepOutput",
         "Param",
         "ParamSpec",
+        "Constant",
+        "ConstantSpec",
         "Input",
         "InputSpec",
         "OutputSpec",
@@ -34,8 +38,12 @@ def test_star_import_exposes_core_names():
 
     for name in (
         "BlowtorchModule",
+        "Tensor",
+        "StepOutput",
         "Param",
         "ParamSpec",
+        "Constant",
+        "ConstantSpec",
         "Input",
         "InputSpec",
         "OutputSpec",

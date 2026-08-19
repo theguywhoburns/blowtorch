@@ -1,4 +1,12 @@
 from .base import *
+from .reset import (
+    Reset,
+    ResetSpec,
+    hard_zero_reset,
+    no_reset,
+    subtract_reset,
+    zero_reset,
+)
 from blowtorch.util.surrogate_gradients import (
     atan_surrogate,
     fast_sigmoid_surrogate,

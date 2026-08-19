@@ -3,8 +3,12 @@ from . import nn
 
 __all__ = [
     "BlowtorchModule",
+    "Tensor",
+    "StepOutput",
     "Param",
     "ParamSpec",
+    "Constant",
+    "ConstantSpec",
     "Input",
     "InputSpec",
     "OutputSpec",

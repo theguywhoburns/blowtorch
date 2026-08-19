@@ -1,4 +1,4 @@
-from blowtorch.base import (
+from blowtorch import (
     StepOutput,
     Tensor,
     clamp_positive,

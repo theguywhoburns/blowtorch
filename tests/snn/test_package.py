@@ -61,3 +61,15 @@ def test_snn_star_import_exposes_lif():
     assert ns["MCN"] is MCN
     assert ns["TwoCompartment"] is TwoCompartment
     assert ns["SnnModule"] is blowtorch.snn.SnnModule
+
+
+def test_reset_module_is_exportable():
+    from blowtorch.snn import reset as reset_module
+
+    assert reset_module.Reset is blowtorch.snn.Reset
+    assert reset_module.ResetSpec is blowtorch.snn.ResetSpec
+    assert reset_module.subtract_reset is blowtorch.snn.subtract_reset
+    assert reset_module.zero_reset is blowtorch.snn.zero_reset
+    assert reset_module.hard_zero_reset is blowtorch.snn.hard_zero_reset
+    assert reset_module.no_reset is blowtorch.snn.no_reset
+    assert callable(reset_module.ResetHandler.apply)

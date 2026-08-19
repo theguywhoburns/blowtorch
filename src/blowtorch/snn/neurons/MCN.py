@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from blowtorch.base import StepOutput, Tensor, clamp_positive
+from blowtorch import StepOutput, Tensor, clamp_positive
 from blowtorch.snn import Reset, SnnModule
 from blowtorch.util.surrogate_gradients import atan_surrogate
 
