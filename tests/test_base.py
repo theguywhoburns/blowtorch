@@ -1439,7 +1439,10 @@ def test_extra_state_none_when_explicit():
 
 def test_extra_state_empty_when_never_allocated():
     m = _Leaky(init_hidden=True)
-    assert m.get_extra_state() == {}
+    assert m.get_extra_state() is None
+
+    snapshot = m.state_dict()
+    assert snapshot["_extra_state"] is None
 
 
 def test_extra_state_contains_hidden_buffers_detached():

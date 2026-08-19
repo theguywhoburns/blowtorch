@@ -75,9 +75,9 @@ def test_sequential_hidden_and_sequence():
     assert out.shape == (B, F)
     assert torch.equal(out, out.bool().to(out.dtype))
 
-    assert len(net._bt_states) == 2
-    assert net._bt_states[0].shape == (B, F)
-    assert net._bt_states[1].shape == (B, F)
+    assert len(net._bt_state_names) == 2
+    assert net._buffers[net._bt_state_names[0]].shape == (B, F)
+    assert net._buffers[net._bt_state_names[1]].shape == (B, F)
 
     x_seq = torch.randn(T, B, F)
     seq = net.forward_sequence(x_seq)
@@ -101,7 +101,7 @@ def test_sequential_mixed_stateless():
     net2 = Sequential(nn.Linear(4, 8), LIF(), init_hidden=True)
     out = net2.forward(torch.randn(B, 4))
     assert out.shape == (B, 8)
-    assert net2._bt_states[0].shape == (B, 8)
+    assert net2._buffers[net2._bt_state_names[0]].shape == (B, 8)
 
 
 def test_sequential_state_factories_match_hidden_alloc():
@@ -110,15 +110,17 @@ def test_sequential_state_factories_match_hidden_alloc():
 
     state = net.initial_state((3, 4))
 
-    for t, stored in zip(state, net._bt_states):
-        assert tuple(t.shape) == tuple(stored.shape)
+    stored = tuple(net._buffers[n] for n in net._bt_state_names)
+
+    for t, s in zip(state, stored):
+        assert tuple(t.shape) == tuple(s.shape)
 
 
 def test_sequential_hidden_shape_change_raises():
     net = Sequential(LIF(), init_hidden=True)
     net(torch.randn(3, 4))
 
-    with pytest.raises(ValueError, match="input shape must stay fixed"):
+    with pytest.raises(ValueError, match="must stay fixed in hidden mode"):
         net(torch.randn(5, 4))
 
 
@@ -139,6 +141,27 @@ def test_sequential_compiled_matches_eager():
     assert torch.allclose(c_out, e_out, atol=1e-6)
     for a, b in zip(ef, cf):
         assert torch.allclose(a, b, atol=1e-6)
+
+
+def test_sequential_compiled_hidden_matches_eager():
+    torch.manual_seed(0)
+    T, B = 6, 4
+
+    eager = Sequential(nn.Linear(4, 8), LIF(), init_hidden=True)
+    net = Sequential(nn.Linear(4, 8), LIF(), init_hidden=True)
+    net.load_state_dict(eager.state_dict())
+
+    x_seq = torch.randn(T, B, 4)
+
+    e_out = eager.forward_sequence(x_seq)
+    assert isinstance(e_out, torch.Tensor)
+
+    net.fast_sequence_()
+    c_out = net.forward_sequence(x_seq)
+
+    assert isinstance(c_out, torch.Tensor)
+    assert c_out.shape == (T, B, 8)
+    assert torch.allclose(c_out, e_out, atol=1e-6)
 
 
 def test_sequential_fast_sequence_disables_child_validation():
@@ -207,4 +230,7 @@ def test_sequential_extra_state_roundtrip():
     h2.set_extra_state(extra)
 
     assert h2._bt_allocated
-    assert torch.allclose(h2._bt_states[0], h._bt_states[0])
+    assert torch.allclose(
+        h2._buffers[h2._bt_state_names[0]],
+        h._buffers[h._bt_state_names[0]],
+    )

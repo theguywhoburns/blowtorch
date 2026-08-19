@@ -21,8 +21,12 @@ class SerializationMixin:
         Only applies in ``init_hidden=True`` mode, where the module owns its
         state. In explicit mode the caller owns the state tensors, so they are
         not serialized here; persist them yourself alongside the state_dict.
+
+        Returns ``None`` when nothing has been allocated, so a round-trip
+        through ``state_dict``/``load_state_dict`` does not mark an unallocated
+        module as allocated.
         """
-        if not self.init_hidden:
+        if not self.init_hidden or not self._bt_allocated:
             return None
 
         out: dict[str, Tensor] = {}
@@ -34,7 +38,7 @@ class SerializationMixin:
         return out
 
     def set_extra_state(self, state: Any) -> None:
-        if not self.init_hidden or state is None:
+        if not self.init_hidden or not state:
             return
 
         for name, t in state.items():
