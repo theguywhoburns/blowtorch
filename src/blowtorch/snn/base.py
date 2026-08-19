@@ -11,6 +11,7 @@ from blowtorch.base import (
     BlowtorchModule,
     ParamSpec,
     StateSpec,
+    StepOutput,
     Tensor,
     extend_specs,
     identity,
@@ -182,6 +183,10 @@ class SnnModule(BlowtorchModule):
         by ``_step`` before exposing it, in both hidden and explicit modes.
         Resets are opt-in: by default no state is reset unless a
         ``StateSpec(reset=...)`` is declared.
+
+    SNN step contract: ``_step`` must return a tuple whose first element is
+    the spike output (used to trigger declarative resets); the remaining
+    elements are the pre-reset state tensors.
     """
 
     spike_grad: Callable[[Tensor], Tensor]
@@ -212,6 +217,28 @@ class SnnModule(BlowtorchModule):
             if spike_grad is not None
             else default_spike_grad
         )
+
+    def _process_spec_extensions(self) -> None:
+        """
+        Let the base class dispatch generic StateSpec extras, then install the
+        SNN-specific reset machinery.
+        """
+        super()._process_spec_extensions()
+        self._install_reset_fn()
+
+    def _post_step(self, out: StepOutput) -> StepOutput:
+        """
+        Apply declarative resets to the state after ``_step``.
+
+        Assumes the first tensor in the tuple is the spike output; the
+        remaining tensors are the pre-reset states.
+        """
+        if isinstance(out, tuple) and len(out) > 0:
+            spk = out[0]
+            pre_state = out[1:]
+            next_state = self._bt_apply_resets(pre_state, spk)
+            return (spk,) + tuple(next_state)
+        return out
 
     def _install_reset_fn(self) -> None:
         """

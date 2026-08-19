@@ -164,6 +164,21 @@ class _NoneDefault(BlowtorchModule):
         return x, x
 
 
+class _PlainRNN(BlowtorchModule):
+    """Generic non-SNN RNN cell: pure state threading, no spike semantics."""
+
+    class Params:
+        w: float = BlowtorchModule.Param(0.5)
+
+    class Specs:
+        out = BlowtorchModule.OutputSpec()
+        h = BlowtorchModule.StateSpec()
+
+    def _step(self, x, h):
+        h = torch.tanh(self.w * h + x)
+        return h, h
+
+
 # ----------------------------------------------------------------------
 # A. Constraints (pure functions)
 # ----------------------------------------------------------------------
@@ -1635,3 +1650,49 @@ def test_state_dict_does_not_include_hidden_buffers_as_plain_keys():
     assert "mem" not in sd
     assert "out" not in sd
     assert "_extra_state" in sd
+
+
+# ----------------------------------------------------------------------
+# M. Generic recurrence (non-SNN) on the base class
+# ----------------------------------------------------------------------
+
+
+def test_generic_rnn_needs_no_spike_grad_or_reset_machinery():
+    m = _PlainRNN()
+    assert not hasattr(m, "spike_grad")
+    assert not hasattr(m, "_bt_apply_resets")
+    assert not hasattr(m, "_bt_reset_exprs")
+
+
+def test_generic_rnn_post_step_identity_keeps_first_output():
+    m = _PlainRNN(init_hidden=False)
+    x = torch.randn(B, F)
+    state = m.initial_state((B, F))
+    out = m(x, *state)
+    assert isinstance(out, tuple) and len(out) == 2
+    expected = torch.tanh(0.5 * state[0] + x)
+    assert torch.allclose(out[0], expected)
+    assert torch.allclose(out[1], expected)
+
+
+def test_generic_rnn_works_hidden_and_explicit():
+    torch.manual_seed(0)
+    hidden = _PlainRNN(init_hidden=True)
+    explicit = _PlainRNN(init_hidden=False)
+    state = explicit.initial_state((B, F))
+
+    for _ in range(T):
+        x = torch.randn(B, F)
+        h_out = hidden(x)
+        e_out = explicit(x, *state)
+        assert isinstance(h_out, torch.Tensor)
+        assert torch.allclose(h_out, e_out[0], atol=1e-6)
+        state = e_out[1:]
+        assert torch.allclose(hidden._buffers["h"], state[0], atol=1e-6)
+
+
+def test_generic_rnn_forward_sequence_works():
+    torch.manual_seed(0)
+    m = _PlainRNN(init_hidden=True)
+    out = m.forward_sequence(torch.randn(T, B, F))
+    assert out.shape == (T, B, F)

@@ -460,8 +460,15 @@ class BlowtorchModule(nn.Module):
       - hidden / explicit dispatch
       - hidden buffer allocation
       - explicit state factories
-      - reset / detach
+      - detach
       - basic sequence scan
+
+    BlowtorchModule is a pure state-threading engine: it makes no assumptions
+    about the semantics of the tensors returned by ``_step`` (no notion of a
+    "spike" output or of resetting state). Subclasses may hook the raw step
+    output through the ``_post_step`` method, which is applied before the
+    output is returned or stored; ``SnnModule`` overrides it to apply
+    declarative per-state resets.
 
     Declaring inputs:
 
@@ -1008,17 +1015,6 @@ class BlowtorchModule(nn.Module):
                 if handler is not None:
                     handler(self, i, spec, value)
 
-        self._install_reset_fn()
-
-    def _install_reset_fn(self) -> None:
-        """
-        Install the state-reset function applied after ``_step``.
-
-        Base modules have no resets; SNN subclasses override this to
-        code-generate reset expressions from their Specs.
-        """
-        self._bt_apply_resets = lambda pre_state, spk: pre_state
-
     # Validation flag
 
     @property
@@ -1391,6 +1387,17 @@ class BlowtorchModule(nn.Module):
 
     # Explicit-mode step
 
+    def _post_step(self, out: StepOutput) -> StepOutput:
+        """
+        Hook applied to the raw output of ``_step`` before it is returned or
+        stored.
+
+        Base modules return the output unchanged. Subclasses (e.g.
+        ``SnnModule``) override this to apply domain-specific transformations
+        such as per-state resets.
+        """
+        return out
+
     def _forward_explicit(
         self,
         inputs: tuple[Tensor, ...],
@@ -1419,13 +1426,7 @@ class BlowtorchModule(nn.Module):
         if self.validate:
             self._check_step_output(out)
 
-        if isinstance(out, tuple):
-            spk = out[0]
-            pre_state = out[1:]
-            next_state = self._bt_apply_resets(pre_state, spk)
-            return (spk,) + tuple(next_state)
-
-        return out
+        return self._post_step(out)
 
     # Public forward
 

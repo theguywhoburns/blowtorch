@@ -1,5 +1,10 @@
 # Resets
 
+Resets are a strictly **SNN** feature: only `SnnModule` subclasses may declare
+them. The base `BlowtorchModule` is a pure state-threading engine and makes no
+assumptions about spikes or resets; `SnnModule` overrides the generic
+`_post_step` hook to apply resets to the pre-reset state returned by `_step`.
+
 Resets are declared per-state in `Specs` via the `Reset` factory. They run
 **after** `_step` in both execution modes, using the step's spike output:
 
@@ -53,5 +58,5 @@ construction time.
 - `zero()` differs from `hard_zero()`: `zero()` multiplies by `(1 - spk)` and
   is exact for binary spikes but leaves float spikes partially intact;
   `hard_zero()` masks unconditionally and works for any spike values.
-- The reset expression is code-generated once at init (`_bt_apply_resets`),
-  so applying resets costs nothing at step time.
+- The reset expression is code-generated once at init by `SnnModule`
+  (`_bt_apply_resets`), so applying resets costs nothing at step time.
