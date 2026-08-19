@@ -34,9 +34,11 @@ Plain PyTorch only. No custom CUDA kernels; the speed comes from
 - **Sequence scans** - `forward_sequence` on `(time, batch, features)` with a
   chunked eager scan plus `fast_sequence_()` / `compile_sequence_scan()` to
   compile the whole scan through `torch.compile`.
-- **Population encoding** - `population_encode` turns scalar quantile
-  fractions into Poisson population spike trains via Gaussian receptive
-  fields (`blowtorch.util.population_encoding`).
+- **Spike trains** - `SpikeTrain` turns quantile fractions into Poisson
+  population spike trains via Gaussian receptive fields, and also ships
+  Poisson and latency encoders plus `.custom(...)`; dense or event-packed GPU
+  form (`blowtorch.util.SpikeTrain`). See
+  [examples/spike_train.py](examples/spike_train.py).
 - **Included neurons** - `LIF`, `AdEx`, `ALIF`, `HH`, `Izhikevich`, `SRM0`,
   `TwoCompartment`, `MCN` (three-compartment basal/apical/soma).
 
