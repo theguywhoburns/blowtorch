@@ -7,7 +7,7 @@ from .reset import (
     subtract_reset,
     zero_reset,
 )
-from blowtorch.util.surrogate_gradients import (
+from crematorium.util.surrogate_gradients import (
     atan_surrogate,
     fast_sigmoid_surrogate,
     sigmoid_surrogate,

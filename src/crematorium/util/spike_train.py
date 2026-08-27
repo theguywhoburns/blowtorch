@@ -5,7 +5,7 @@ from typing import Any, Callable, Iterator, Optional
 
 import torch
 
-from blowtorch.base import Tensor
+from crematorium.base import Tensor
 
 __all__ = ["SpikeTrain"]
 

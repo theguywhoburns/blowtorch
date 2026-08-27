@@ -3,15 +3,12 @@ from __future__ import annotations
 import pytest
 import torch
 
-from blowtorch import (
-    BlowtorchModule,
-    Input,
+from crematorium import (
+    crematoriumModule,
     InputSpec,
-    OutputSpec,
-    StateSpec,
     no_validation,
 )
-from blowtorch.base import Tensor
+from crematorium.base import Tensor
 
 B, F = 4, 8
 G = 5
@@ -22,7 +19,7 @@ G = 5
 # ----------------------------------------------------------------------
 
 
-class _TwoInput(BlowtorchModule):
+class _TwoInput(crematoriumModule):
     """Basal + apical inputs; state follows the primary (basal) input."""
 
     class Inputs:
@@ -30,14 +27,14 @@ class _TwoInput(BlowtorchModule):
         inh: Tensor
 
     class Specs:
-        out = BlowtorchModule.OutputSpec()
-        v = BlowtorchModule.StateSpec(shape="x")
+        out = crematoriumModule.OutputSpec()
+        v = crematoriumModule.StateSpec(shape="x")
 
     def _step(self, x, inh, v):
         return torch.cat([x, inh], dim=-1), v + 1
 
 
-class _TwoInputListLike(BlowtorchModule):
+class _TwoInputListLike(crematoriumModule):
     """Same dynamics; accepts list inputs (also exercises shape="input")."""
 
     class Inputs:
@@ -45,29 +42,29 @@ class _TwoInputListLike(BlowtorchModule):
         inh: Tensor
 
     class Specs:
-        out = BlowtorchModule.OutputSpec()
-        v = BlowtorchModule.StateSpec(shape="input")
+        out = crematoriumModule.OutputSpec()
+        v = crematoriumModule.StateSpec(shape="input")
 
     def _step(self, x, inh, v):
         return torch.cat([x, inh], dim=-1), v + 1
 
 
-class _ExplicitPrimary(BlowtorchModule):
+class _ExplicitPrimary(crematoriumModule):
     """Marks the second input primary via the mixed declaration syntax."""
 
     class Inputs:
         x: Tensor
-        inh: Tensor = BlowtorchModule.Input(primary=True)
+        inh: Tensor = crematoriumModule.Input(primary=True)
 
     class Specs:
-        out = BlowtorchModule.OutputSpec()
-        v = BlowtorchModule.StateSpec(shape="input")
+        out = crematoriumModule.OutputSpec()
+        v = crematoriumModule.StateSpec(shape="input")
 
     def _step(self, x, inh, v):
         return torch.cat([x, inh], dim=-1), v + 1
 
 
-class _StateFromInh(BlowtorchModule):
+class _StateFromInh(crematoriumModule):
     """State shape follows the non-primary input by name."""
 
     class Inputs:
@@ -75,14 +72,14 @@ class _StateFromInh(BlowtorchModule):
         inh: Tensor
 
     class Specs:
-        out = BlowtorchModule.OutputSpec()
-        v = BlowtorchModule.StateSpec(shape="inh")
+        out = crematoriumModule.OutputSpec()
+        v = crematoriumModule.StateSpec(shape="inh")
 
     def _step(self, x, inh, v):
         return x.sum(dim=-1, keepdim=True) + v, v
 
 
-class _FixedShapeState(BlowtorchModule):
+class _FixedShapeState(crematoriumModule):
     """Explicit tuple state shape with two inputs."""
 
     class Inputs:
@@ -90,21 +87,21 @@ class _FixedShapeState(BlowtorchModule):
         inh: Tensor
 
     class Specs:
-        out = BlowtorchModule.OutputSpec()
-        v = BlowtorchModule.StateSpec(shape=(F,))
+        out = crematoriumModule.OutputSpec()
+        v = crematoriumModule.StateSpec(shape=(F,))
 
     def _step(self, x, inh, v):
         return x + inh, v + 1
 
 
-class _BaseInputs(BlowtorchModule):
+class _BaseInputs(crematoriumModule):
     class Inputs:
         x: Tensor
         base_in: Tensor
 
     class Specs:
-        out = BlowtorchModule.OutputSpec()
-        v = BlowtorchModule.StateSpec()
+        out = crematoriumModule.OutputSpec()
+        v = crematoriumModule.StateSpec()
 
     def _step(self, x, base_in, v):
         return x + base_in, v
@@ -120,33 +117,33 @@ class _ChildInputs(_BaseInputs):
 
 class _OverrideInputs(_BaseInputs):
     class Inputs:
-        base_in: Tensor = BlowtorchModule.Input(primary=True)
+        base_in: Tensor = crematoriumModule.Input(primary=True)
 
     def _step(self, x, base_in, v):
         return x + base_in, v
 
 
-class _DefaultState(BlowtorchModule):
+class _DefaultState(crematoriumModule):
     class Inputs:
         x: Tensor
         inh: Tensor
 
     class Specs:
-        out = BlowtorchModule.OutputSpec()
-        v = BlowtorchModule.StateSpec(shape=None)
+        out = crematoriumModule.OutputSpec()
+        v = crematoriumModule.StateSpec(shape=None)
 
     def _step(self, x, inh, v):
         return torch.cat([x, inh], dim=-1), v + 1
 
 
-class _UnknownShape(BlowtorchModule):
+class _UnknownShape(crematoriumModule):
     class Inputs:
         x: Tensor
         inh: Tensor
 
     class Specs:
-        out = BlowtorchModule.OutputSpec()
-        v = BlowtorchModule.StateSpec(shape="nope")
+        out = crematoriumModule.OutputSpec()
+        v = crematoriumModule.StateSpec(shape="nope")
 
     def _step(self, x, inh, v):
         return x + inh, v
@@ -169,10 +166,10 @@ T = 5
 
 
 def test_default_implicit_input_metadata():
-    class _Leaky(BlowtorchModule):
+    class _Leaky(crematoriumModule):
         class Specs:
-            out = BlowtorchModule.OutputSpec()
-            mem = BlowtorchModule.StateSpec()
+            out = crematoriumModule.OutputSpec()
+            mem = crematoriumModule.StateSpec()
 
         def _step(self, x, mem):
             return x, mem
@@ -186,10 +183,10 @@ def test_default_implicit_input_metadata():
 
 
 def test_single_input_public_api_unchanged():
-    class _Leaky(BlowtorchModule):
+    class _Leaky(crematoriumModule):
         class Specs:
-            out = BlowtorchModule.OutputSpec()
-            mem = BlowtorchModule.StateSpec()
+            out = crematoriumModule.OutputSpec()
+            mem = crematoriumModule.StateSpec()
 
         def _step(self, x, mem):
             return x, mem
@@ -419,27 +416,27 @@ def test_explicit_primary_works():
 def test_multiple_primary_inputs_raise():
     with pytest.raises(TypeError, match="multiple primary inputs"):
 
-        class _Bad(BlowtorchModule):
+        class _Bad(crematoriumModule):
             class Inputs:
-                x = BlowtorchModule.Input(primary=True)
-                inh = BlowtorchModule.Input(primary=True)
+                x = crematoriumModule.Input(primary=True)
+                inh = crematoriumModule.Input(primary=True)
 
             class Specs:
-                out = BlowtorchModule.OutputSpec()
-                v = BlowtorchModule.StateSpec()
+                out = crematoriumModule.OutputSpec()
+                v = crematoriumModule.StateSpec()
 
             def _step(self, x, inh, v):
                 return x + inh, v
 
 
 def test_input_spec_dtype_stored():
-    class _D(BlowtorchModule):
+    class _D(crematoriumModule):
         class Inputs:
-            x: Tensor = BlowtorchModule.Input(dtype=float)
+            x: Tensor = crematoriumModule.Input(dtype=float)
 
         class Specs:
-            out = BlowtorchModule.OutputSpec()
-            v = BlowtorchModule.StateSpec()
+            out = crematoriumModule.OutputSpec()
+            v = crematoriumModule.StateSpec()
 
         def _step(self, x, v):
             return x, v
@@ -448,13 +445,13 @@ def test_input_spec_dtype_stored():
 
 
 def test_input_dtype_exact_match_enforced():
-    class _D(BlowtorchModule):
+    class _D(crematoriumModule):
         class Inputs:
-            x: Tensor = BlowtorchModule.Input(dtype=torch.float32)
+            x: Tensor = crematoriumModule.Input(dtype=torch.float32)
 
         class Specs:
-            out = BlowtorchModule.OutputSpec()
-            v = BlowtorchModule.StateSpec()
+            out = crematoriumModule.OutputSpec()
+            v = crematoriumModule.StateSpec()
 
         def _step(self, x, v):
             return x, v
@@ -469,13 +466,13 @@ def test_input_dtype_exact_match_enforced():
 
 
 def test_input_dtype_python_float_enforced():
-    class _D(BlowtorchModule):
+    class _D(crematoriumModule):
         class Inputs:
-            x: Tensor = BlowtorchModule.Input(dtype=float)
+            x: Tensor = crematoriumModule.Input(dtype=float)
 
         class Specs:
-            out = BlowtorchModule.OutputSpec()
-            v = BlowtorchModule.StateSpec()
+            out = crematoriumModule.OutputSpec()
+            v = crematoriumModule.StateSpec()
 
         def _step(self, x, v):
             return x, v
@@ -490,13 +487,13 @@ def test_input_dtype_python_float_enforced():
 
 
 def test_input_dtype_python_int_enforced():
-    class _D(BlowtorchModule):
+    class _D(crematoriumModule):
         class Inputs:
-            x: Tensor = BlowtorchModule.Input(dtype=int)
+            x: Tensor = crematoriumModule.Input(dtype=int)
 
         class Specs:
-            out = BlowtorchModule.OutputSpec()
-            v = BlowtorchModule.StateSpec()
+            out = crematoriumModule.OutputSpec()
+            v = crematoriumModule.StateSpec()
 
         def _step(self, x, v):
             return x, v
@@ -634,14 +631,14 @@ def test_wrong_state_count_raises():
 
 
 def test_validation_disabled_skips_input_count_check():
-    class _AnyArity(BlowtorchModule):
+    class _AnyArity(crematoriumModule):
         class Inputs:
             x: Tensor
             inh: Tensor
 
         class Specs:
-            out = BlowtorchModule.OutputSpec()
-            v = BlowtorchModule.StateSpec()
+            out = crematoriumModule.OutputSpec()
+            v = crematoriumModule.StateSpec()
 
         def _step(self, x, inh, *extra):
             return x + inh, (extra[0] if extra else torch.zeros_like(x))
@@ -683,17 +680,17 @@ def test_fast_sequence_disables_validation():
 def test_input_collides_with_param_raises():
     with pytest.raises(TypeError, match="collide with parameter"):
 
-        class _Bad(BlowtorchModule):
+        class _Bad(crematoriumModule):
             class Params:
-                inh = BlowtorchModule.Param(0.5)
+                inh = crematoriumModule.Param(0.5)
 
             class Inputs:
                 x: Tensor
                 inh: Tensor
 
             class Specs:
-                out = BlowtorchModule.OutputSpec()
-                v = BlowtorchModule.StateSpec()
+                out = crematoriumModule.OutputSpec()
+                v = crematoriumModule.StateSpec()
 
             def _step(self, x, inh, v):
                 return x + inh, v
@@ -702,16 +699,16 @@ def test_input_collides_with_param_raises():
 def test_input_collides_with_constant_raises():
     with pytest.raises(TypeError, match="collide with constant"):
 
-        class _Bad(BlowtorchModule):
-            dt = BlowtorchModule.Constant(0.01, dtype=float)
+        class _Bad(crematoriumModule):
+            dt = crematoriumModule.Constant(0.01, dtype=float)
 
             class Inputs:
                 x: Tensor
                 dt: Tensor
 
             class Specs:
-                out = BlowtorchModule.OutputSpec()
-                v = BlowtorchModule.StateSpec()
+                out = crematoriumModule.OutputSpec()
+                v = crematoriumModule.StateSpec()
 
             def _step(self, x, dt, v):
                 return x + dt, v
@@ -720,14 +717,14 @@ def test_input_collides_with_constant_raises():
 def test_input_collides_with_output_raises():
     with pytest.raises(TypeError, match="collide with output/state"):
 
-        class _Bad(BlowtorchModule):
+        class _Bad(crematoriumModule):
             class Inputs:
                 x: Tensor
                 out: Tensor
 
             class Specs:
-                out = BlowtorchModule.OutputSpec()
-                v = BlowtorchModule.StateSpec()
+                out = crematoriumModule.OutputSpec()
+                v = crematoriumModule.StateSpec()
 
             def _step(self, x, out, v):
                 return x + out, v
@@ -736,14 +733,14 @@ def test_input_collides_with_output_raises():
 def test_input_collides_with_state_raises():
     with pytest.raises(TypeError, match="collide with output/state"):
 
-        class _Bad(BlowtorchModule):
+        class _Bad(crematoriumModule):
             class Inputs:
                 x: Tensor
                 v: Tensor
 
             class Specs:
-                out = BlowtorchModule.OutputSpec()
-                v = BlowtorchModule.StateSpec()
+                out = crematoriumModule.OutputSpec()
+                v = crematoriumModule.StateSpec()
 
             def _step(self, x, v, s):
                 return x + v, s
@@ -755,8 +752,8 @@ def _module_with_inputs(entries):
         "Specs",
         (),
         {
-            "out": BlowtorchModule.OutputSpec(),
-            "v": BlowtorchModule.StateSpec(),
+            "out": crematoriumModule.OutputSpec(),
+            "v": crematoriumModule.StateSpec(),
         },
     )
 
@@ -765,7 +762,7 @@ def _module_with_inputs(entries):
 
     return type(
         "_Dynamic",
-        (BlowtorchModule,),
+        (crematoriumModule,),
         {"Inputs": inputs_cls, "Specs": specs_cls, "_step": _step},
     )
 

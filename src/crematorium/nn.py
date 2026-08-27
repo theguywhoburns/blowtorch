@@ -6,8 +6,8 @@ from typing import Any, Optional
 import torch
 import torch.nn as nn
 
-from blowtorch.base import (
-    BlowtorchModule,
+from crematorium.base import (
+    crematoriumModule,
     InputTensor,
     OutputSpec,
     StateSpec,
@@ -19,13 +19,13 @@ from blowtorch.base import (
 __all__ = ["Sequential"]
 
 
-class Sequential(BlowtorchModule):
+class Sequential(crematoriumModule):
     """
     Stack layers into a network.
 
-    A ``BlowtorchModule`` topology manager: it moves data between layers and
+    A ``crematoriumModule`` topology manager: it moves data between layers and
     threads a flat state tuple through the time-major scan. Stateful
-    ``BlowtorchModule`` layers stay pure functions (``init_hidden=False``);
+    ``crematoriumModule`` layers stay pure functions (``init_hidden=False``);
     stateless ``nn.Module`` layers are applied once per timestep. The whole
     stack runs as one step function, so ``fast_sequence_()`` compiles a single
     fused scan over every layer.
@@ -33,7 +33,7 @@ class Sequential(BlowtorchModule):
     ``init_hidden=True`` stateful layers are rejected: the container owns the
     state bundle, so children must run in explicit mode.
 
-    The container reuses the ``BlowtorchModule`` machinery. Hidden state lives
+    The container reuses the ``crematoriumModule`` machinery. Hidden state lives
     in non-persistent buffers named ``l{layer_index}_{state_name}`` (e.g.
     ``l0_mem``), and scans, compiled scans, validation, and serialization all
     come from the base mixins. State shapes are not declared: they are
@@ -66,7 +66,7 @@ class Sequential(BlowtorchModule):
                     f"got {type(layer).__name__}"
                 )
 
-            if isinstance(layer, BlowtorchModule) and layer.init_hidden:
+            if isinstance(layer, crematoriumModule) and layer.init_hidden:
                 raise ValueError(
                     f"stateful layer {type(layer).__name__} is in "
                     f"init_hidden=True mode; Sequential owns the state, pass "
@@ -86,7 +86,7 @@ class Sequential(BlowtorchModule):
         state_entries: list[tuple[str, StateSpec]] = []
 
         for i, layer in enumerate(self._layers):
-            if not isinstance(layer, BlowtorchModule):
+            if not isinstance(layer, crematoriumModule):
                 continue
 
             if len(layer._bt_output_specs) != 1:
@@ -124,7 +124,7 @@ class Sequential(BlowtorchModule):
         next_states: list[Tensor] = []
 
         for layer in self._layers:
-            if isinstance(layer, BlowtorchModule):
+            if isinstance(layer, crematoriumModule):
                 n = len(layer._bt_state_names)
                 out = layer.forward(x, *state[offset : offset + n])
                 assert isinstance(out, tuple)
@@ -173,7 +173,7 @@ class Sequential(BlowtorchModule):
             shapes: list[tuple[int, ...]] = []
 
             for layer in self._layers:
-                if isinstance(layer, BlowtorchModule):
+                if isinstance(layer, crematoriumModule):
                     state = layer.initial_state(
                         tuple(x.shape),
                         device=torch.device("meta"),
@@ -351,18 +351,30 @@ class Sequential(BlowtorchModule):
             x_seq: Tensor,
             state: Optional[tuple[Tensor, ...]] = None,
         ) -> Tensor | StepOutput:
+            inputs_seq = self._canonicalize_input_sequence(x_seq)
+
             if self.init_hidden:
-                if x_seq.shape[0] > 0:
-                    self.allocate_like(x_seq[0])
+                if inputs_seq[0].shape[0] > 0:
+                    self.allocate_like(self._first_inputs(inputs_seq))
                 state = tuple(getattr(self, name) for name in self._bt_state_names)
             elif state is None:
-                state = self.initial_state_for_sequence(x_seq)
+                state = self.initial_state_for_sequence(inputs_seq)
 
-            out = compiled((x_seq,), state)
+            out = compiled(inputs_seq, state)
 
             if self.init_hidden:
                 y = out[0]
-                self._buffers[self._bt_output_names[0]] = y[-1] if y.dim() > 0 else y
+                # Match the base ``_hidden_sequence_scan`` contract: detach
+                # non-differentiable outputs before writing them to the
+                # output buffer. The container's ``OutputSpec()`` is always
+                # differentiable=True today, so the detach is a no-op, but
+                # applying it keeps the contract in sync with the base class
+                # and protects any future non-differentiable container output.
+                spec = self._bt_output_specs[0]
+                last = y[-1] if y.dim() > 0 else y
+                if not spec.differentiable:
+                    last = last.detach()
+                self._buffers[self._bt_output_names[0]] = last
 
                 for name, t in zip(self._bt_state_names, out[1:]):
                     self._buffers[name] = t
@@ -383,7 +395,7 @@ class Sequential(BlowtorchModule):
         **compile_kwargs: Any,
     ) -> "Sequential":
         for layer in self._layers:
-            if isinstance(layer, BlowtorchModule):
+            if isinstance(layer, crematoriumModule):
                 layer.validate = False
 
         super().fast_sequence_(compile_scan, **compile_kwargs)
@@ -394,7 +406,7 @@ class Sequential(BlowtorchModule):
         return f"{type(self).__name__}(\n  {inner}\n)"
 
 
-# BlowtorchModule's __init_subclass__ generates a parameter-only signature that
+# crematoriumModule's __init_subclass__ generates a parameter-only signature that
 # hides the positional *layers. Restore the real constructor signature for
 # help()/inspect.
 setattr(

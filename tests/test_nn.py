@@ -3,9 +3,9 @@ import pytest
 
 import torch.nn as nn
 
-from blowtorch.base import BlowtorchModule
-from blowtorch.nn import Sequential
-from blowtorch.snn import LIF
+from crematorium.base import crematoriumModule
+from crematorium.nn import Sequential
+from crematorium.snn import LIF
 
 
 def test_sequential_rejects_bad_construction():
@@ -49,11 +49,11 @@ def test_sequential_explicit_matches_manual_chain():
     assert torch.allclose(final[1], m2, atol=1e-6)
 
 
-class _TwoOutput(BlowtorchModule):
+class _TwoOutput(crematoriumModule):
     class Specs:
-        a = BlowtorchModule.OutputSpec()
-        b = BlowtorchModule.OutputSpec()
-        s = BlowtorchModule.StateSpec()
+        a = crematoriumModule.OutputSpec()
+        b = crematoriumModule.OutputSpec()
+        s = crematoriumModule.StateSpec()
 
     def _step(self, x: torch.Tensor, s: torch.Tensor):
         return x, x, s

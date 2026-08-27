@@ -10,11 +10,11 @@ import torch.nn as nn
 from .specs import Constraint, identity
 
 if TYPE_CHECKING:
-    from . import BlowtorchModule
+    from . import crematoriumModule
 
 
 def build_params(
-    module: BlowtorchModule,
+    module: crematoriumModule,
     kwargs: dict[str, Any],
 ) -> tuple[dict[str, Any], list[Constraint]]:
     """
@@ -111,7 +111,7 @@ def build_params(
     return kwargs, constraint_fns
 
 
-def install_constrained(module: BlowtorchModule) -> None:
+def install_constrained(module: crematoriumModule) -> None:
     """
     Freeze the constrained-parameter return expression on the module.
 
@@ -163,7 +163,7 @@ def install_constrained(module: BlowtorchModule) -> None:
 
 
 def remaining_kwargs_error(
-    module: BlowtorchModule,
+    module: crematoriumModule,
     kwargs: dict[str, Any],
 ) -> TypeError:
     """

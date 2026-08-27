@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 
 if TYPE_CHECKING:
-    from . import BlowtorchModule
+    from . import crematoriumModule
 
 Tensor = torch.Tensor
 StepOutput = tuple[Tensor, ...]
@@ -104,7 +104,7 @@ def Param(
 
     With ``dtype=`` the call is typed as that Python type, so writing
 
-        beta = BlowtorchModule.Param(0.9, dtype=float)
+        beta = crematoriumModule.Param(0.9, dtype=float)
 
     makes the assigned attribute a ``float`` for static type checkers.
     Returns Any otherwise.
@@ -173,7 +173,7 @@ def Constant(
 
     With ``dtype=`` the call is typed as that Python type, so writing
 
-        dt = BlowtorchModule.Constant(0.01, dtype=float)
+        dt = crematoriumModule.Constant(0.01, dtype=float)
 
     makes the assigned attribute a ``float`` for static type checkers.
     Returns Any otherwise.
@@ -222,7 +222,7 @@ def Input(*, primary: bool = False, dtype: Any = None) -> Any:
 
     With ``dtype=`` the call is typed as that Python type, so writing
 
-        x = BlowtorchModule.Input(primary=True, dtype=float)
+        x = crematoriumModule.Input(primary=True, dtype=float)
 
     makes the assigned attribute a ``float`` for static type checkers. Returns
     ``Any`` otherwise.
@@ -252,11 +252,11 @@ class StateSpec:
       - a string matching an input name: that input's shape. Useful for
         multi-input modules where a state should follow a non-primary input:
 
-            v = BlowtorchModule.StateSpec(shape="inh")
+            v = crematoriumModule.StateSpec(shape="inh")
 
       - an explicit tuple: decouples state shape from input shape:
 
-            mem = BlowtorchModule.StateSpec(shape=(F,))   # per-feature state
+            mem = crematoriumModule.StateSpec(shape=(F,))   # per-feature state
 
     `None` behaves identically to "input" (the state follows the primary input
     shape); there is no scalar-shaped state convention.
@@ -281,18 +281,18 @@ class StateSpec:
 
 Spec = Union[OutputSpec, StateSpec]
 
-_BTModuleT = TypeVar("_BTModuleT", bound="type[BlowtorchModule]")
+_BTModuleT = TypeVar("_BTModuleT", bound="type[crematoriumModule]")
 
 
 def extend_specs(**extensions: Callable[..., Any]):
     """
-    Decorate a BlowtorchModule subclass with StateSpec extra handlers.
+    Decorate a crematoriumModule subclass with StateSpec extra handlers.
 
     Each extra key declared on a StateSpec (e.g. ``StateSpec(reset=...)``) is
     dispatched at construction time to the matching handler callable:
 
         @extend_specs(reset=ResetHandler)
-        class SnnModule(BlowtorchModule):
+        class SnnModule(crematoriumModule):
             ...
 
     Handlers are called as ``handler(module, state_index, spec, value)``.

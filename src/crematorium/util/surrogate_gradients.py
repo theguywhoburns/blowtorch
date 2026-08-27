@@ -5,7 +5,7 @@ from typing import Callable
 
 import torch
 
-from blowtorch.base import Tensor
+from crematorium.base import Tensor
 
 __all__ = [
     "default_spike_grad",

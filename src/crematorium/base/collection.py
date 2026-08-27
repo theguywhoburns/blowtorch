@@ -15,11 +15,11 @@ from .specs import (
 )
 
 if TYPE_CHECKING:
-    from . import BlowtorchModule
+    from . import crematoriumModule
 
 
 def collect_params(
-    cls: type[BlowtorchModule],
+    cls: type[crematoriumModule],
 ) -> tuple[
     dict[str, ParamSpec],
     dict[str, Any],
@@ -57,7 +57,7 @@ def collect_params(
     return params, annotations, constants, constant_annotations
 
 
-def collect_specs(cls: type[BlowtorchModule]) -> tuple[tuple[str, Spec], ...]:
+def collect_specs(cls: type[crematoriumModule]) -> tuple[tuple[str, Spec], ...]:
     """
     Collect OutputSpec / StateSpec entries from nested `Specs` classes.
     """
@@ -75,7 +75,7 @@ def collect_specs(cls: type[BlowtorchModule]) -> tuple[tuple[str, Spec], ...]:
     return tuple(entries.items())
 
 
-def collect_inputs(cls: type[BlowtorchModule]) -> tuple[tuple[str, InputSpec], ...]:
+def collect_inputs(cls: type[crematoriumModule]) -> tuple[tuple[str, InputSpec], ...]:
     """
     Collect named step inputs from nested `Inputs` classes across the MRO.
 
@@ -123,7 +123,7 @@ def collect_inputs(cls: type[BlowtorchModule]) -> tuple[tuple[str, InputSpec], .
     return tuple(inputs.items())
 
 
-def check_input_namespace_collisions(cls: type[BlowtorchModule]) -> None:
+def check_input_namespace_collisions(cls: type[crematoriumModule]) -> None:
     """
     Input names share the module namespace with params, constants, states,
     and outputs; reject collisions with a clear message.
@@ -147,7 +147,7 @@ def check_input_namespace_collisions(cls: type[BlowtorchModule]) -> None:
             )
 
 
-def collect_metadata(cls: type[BlowtorchModule]) -> None:
+def collect_metadata(cls: type[crematoriumModule]) -> None:
     """
     Gather all ``_bt_*`` metadata on a freshly created subclass.
 
@@ -213,7 +213,7 @@ def collect_metadata(cls: type[BlowtorchModule]) -> None:
     )
 
 
-def generate_signature(cls: type[BlowtorchModule]) -> None:
+def generate_signature(cls: type[crematoriumModule]) -> None:
     """
     Generate a runtime __signature__ for help(), inspect, notebooks, etc.
 

@@ -1,15 +1,15 @@
 # Sequential networks
 
-`blowtorch.nn.Sequential` stacks layers into a network: stateful neurons
-(`BlowtorchModule` subclasses, e.g. `LIF`) and plain stateless `nn.Module`
+`crematorium.nn.Sequential` stacks layers into a network: stateful neurons
+(`crematoriumModule` subclasses, e.g. `LIF`) and plain stateless `nn.Module`
 layers (e.g. `nn.Linear`) in any order. It is a thin topology manager - it
 moves data between layers and threads a flat state tuple through the
 time-major scan, mirroring `torch.nn.Sequential`.
 
 ```python
 import torch
-from blowtorch.nn import Sequential
-from blowtorch.snn import LIF
+from crematorium.nn import Sequential
+from crematorium.snn import LIF
 
 net = Sequential(nn.Linear(4, 8), LIF(), LIF())
 ```

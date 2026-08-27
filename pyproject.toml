@@ -1,15 +1,36 @@
 [project]
-name = "blowtorch"
+name = "crematorium"
 version = "0.1.0"
 description = "Declarative spiking neural networks for PyTorch research"
 readme = "README.md"
 authors = [
     { name = "theguywhoburns", email = "burndev@mail.ru" }
 ]
+license = "LGPL-3.0-only"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
+keywords = [
+    "spiking-neural-networks",
+    "snns",
+    "neuroscience",
+    "pytorch",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "torch>=2.13.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/theguywhoburns/crematorium"
+Repository = "https://github.com/theguywhoburns/crematorium"
+Issues = "https://github.com/theguywhoburns/crematorium/issues"
 
 [project.optional-dependencies]
 cu130 = ["torch>=2.13.0"]
@@ -58,6 +79,8 @@ dev = [
     "numpy>=2.4.4",
     "norse>=0.1.1",
     "pytest>=9.1.1",
+    "pyright>=1.1.400",
+    "ruff>=0.13",
 ]
 bench = [
     "norse>=0.1.1",
@@ -88,5 +111,29 @@ filterwarnings = [
 # declarative `_step` signature (arbitrary per-neuron state params) instead of
 # disabling this rule package-wide.
 executionEnvironments = [
-    { root = "src/blowtorch", reportIncompatibleMethodOverride = "none" },
+    { root = "src/crematorium", reportIncompatibleMethodOverride = "none" },
 ]
+# Tests and benchmarks use Param() which is Any-typed by design; including
+# them produces 300+ noise diagnostics. Pyright is scoped to the library
+# surface; run the full suite only if you change a shared spec.
+exclude = ["tests", "benchmarks"]
+
+[tool.ruff]
+src = ["src", "tests", "benchmarks"]
+
+[tool.ruff.lint]
+# Repo uses hand-formatting; do NOT adopt `ruff format` (see README
+# "Development" section). These rules are the small, high-signal set:
+#   E4/E7/E9 - pycodestyle (imports, statements, runtime)
+#   F        - pyflakes (real bugs: undefined names, unused imports)
+#   B        - bugbear (likely bugs, common pitfalls)
+#   RUF      - ruff-specific lints
+select = ["E4", "E7", "E9", "F", "B", "RUF"]
+# Neuron modules are class-per-file CamelCase by design; N999 ("module
+# name should be lowercase") would fire on every neuron file.
+ignore = ["N999"]
+
+[tool.ruff.lint.per-file-ignores]
+# construction.py uses ``exec`` for a deliberate, contained codegen step;
+# S102 (exec-built-in) is intentional there.
+"src/*" = ["S102"]

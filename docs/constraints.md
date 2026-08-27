@@ -14,8 +14,8 @@ used as given; learnable params are updated by an optimizer and need the
 constraint enforced to stay in the valid region.
 
 ```python
-from blowtorch.base import clamp_positive, clamp_unit_interval
-from blowtorch.snn import SnnModule
+from crematorium.base import clamp_positive, clamp_unit_interval
+from crematorium.snn import SnnModule
 
 class LIF(SnnModule):
     class Params:
@@ -32,11 +32,11 @@ class LIF(SnnModule):
 
 Every `Param` gets three constructor kwargs:
 
-| kwarg                 | effect                                     |
-| --------------------- | ------------------------------------------ |
-| `learnable_<name>=`   | force learnable `True`/`False`             |
-| `force_learn_<name>=` | alias kept for compatibility               |
-| `<name>_constraint=`  | replace the constraint (e.g. `identity`)   |
+| kwarg                 | effect                                   |
+| --------------------- | ---------------------------------------- |
+| `learnable_<name>=`   | force learnable `True`/`False`           |
+| `force_learn_<name>=` | alias kept for compatibility             |
+| `<name>_constraint=`  | replace the constraint (e.g. `identity`) |
 
 ```python
 lif = LIF(
@@ -51,10 +51,10 @@ param still bypasses it.
 
 ## Provided constraints
 
-| constraint            | effect                    |
-| --------------------- | ------------------------- |
-| `clamp_unit_interval` | clamp to `[0, 1]`         |
-| `clamp_positive`      | clamp to `[0, inf)`       |
+| constraint            | effect                            |
+| --------------------- | --------------------------------- |
+| `clamp_unit_interval` | clamp to `[0, 1]`                 |
+| `clamp_positive`      | clamp to `[0, inf)`               |
 | `identity`            | no-op (use to strip a constraint) |
 
 `identity` is also the default when no constraint is declared.

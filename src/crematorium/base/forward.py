@@ -20,7 +20,7 @@ from .validation import (
 )
 
 # The per-timestep forward path and loop conveniences. Host members used below
-# but owned by earlier mixins are declared as type-only stubs; BlowtorchModule's
+# but owned by earlier mixins are declared as type-only stubs; crematoriumModule's
 # MRO (this mixin sits after their owners) resolves the real implementations.
 
 

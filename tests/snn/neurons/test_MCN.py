@@ -5,8 +5,8 @@ import math
 import pytest
 import torch
 
-from blowtorch.snn.neurons.MCN import MCN
-from blowtorch.util import atan_surrogate, default_spike_grad
+from crematorium.snn.neurons.MCN import MCN
+from crematorium.util import atan_surrogate, default_spike_grad
 
 B, F = 4, 8
 

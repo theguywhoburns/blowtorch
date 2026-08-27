@@ -9,7 +9,7 @@ The **caller owns the state**. The module is a pure function of
 `(x, *state)` - no hidden buffers, nothing mutated between calls.
 
 ```python
-from blowtorch.snn import LIF
+from crematorium.snn import LIF
 
 lif = LIF()
 
@@ -63,13 +63,13 @@ ergonomic default for sequence training.
 
 ## Which to pick
 
-|                         | explicit                   | hidden                     |
-| ----------------------- | -------------------------- | -------------------------- |
-| owns state              | caller                     | module buffers             |
-| forward returns         | `(spk, *next_state)`       | output tensor(s)           |
-| forward_sequence returns| `(outputs, *final_state)`  | output sequence(s)         |
-| state factories         | `initial_state`/`zero_state` | `reset()`, lazy alloc     |
-| best for                | BPTT, replayable stepping  | self-contained sequences   |
+|                          | explicit                     | hidden                   |
+| ------------------------ | ---------------------------- | ------------------------ |
+| owns state               | caller                       | module buffers           |
+| forward returns          | `(spk, *next_state)`         | output tensor(s)         |
+| forward_sequence returns | `(outputs, *final_state)`    | output sequence(s)       |
+| state factories          | `initial_state`/`zero_state` | `reset()`, lazy alloc    |
+| best for                 | BPTT, replayable stepping    | self-contained sequences |
 
 Both modes apply the same declarative resets after `_step`, and both route
 through `compile_sequence_scan()` when a compiled scan is installed.

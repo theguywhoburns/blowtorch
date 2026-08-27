@@ -1,10 +1,10 @@
-from blowtorch import (
+from crematorium import (
     StepOutput,
     Tensor,
     clamp_positive,
     clamp_unit_interval,
 )
-from blowtorch.snn import Reset, SnnModule
+from crematorium.snn import Reset, SnnModule
 
 
 class ALIF(SnnModule):

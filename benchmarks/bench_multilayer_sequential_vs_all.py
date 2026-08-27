@@ -1,4 +1,4 @@
-"""Benchmark a multilayer LIF network: blowtorch Sequential vs snnTorch/Norse.
+"""Benchmark a multilayer LIF network: crematorium Sequential vs snnTorch/Norse.
 
 The network is deliberately LIF-heavy and Linear-light (fewer affine
 transforms, more neuron layers), because that is where a fused scan wins:
@@ -11,7 +11,7 @@ Run from the repo root:
         [--steps 1000] [--batch 32] [--features 512] [--hidden 4] [--out 10]
 
 Rows:
-    blowtorch Sequential  the whole network as one scan (forward_sequence),
+    crematorium Sequential  the whole network as one scan (forward_sequence),
                           eager and compiled (fast_sequence_); plus the
                           per-step loop as a reference.
     snntorch             nn.Sequential of Linear/Leaky, canonical per-step
@@ -37,9 +37,8 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
-import blowtorch as bt
-from blowtorch.nn import Sequential
-from blowtorch.snn import LIF as BtLIF
+from crematorium.nn import Sequential
+from crematorium.snn import LIF as BtLIF
 
 BETA = 0.9
 
@@ -94,7 +93,7 @@ def timeit(fn, device: torch.device, warmup: int, reps: int) -> tuple[float, flo
     return best, peak
 
 
-# Blowtorch Sequential
+# crematorium Sequential
 
 
 def bt_seq(x: torch.Tensor, device: torch.device, hidden: int, out: int, compiled: bool):
@@ -227,7 +226,7 @@ def main() -> None:
 
     out_dir = args.outdir
     out_dir.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    stamp = datetime.now().astimezone().strftime("%Y%m%d_%H%M%S")
     path = out_dir / f"bench_multi_s{steps}_b{batch}_f{features}_h{hidden}_{stamp}.csv"
 
     print(f"device={device}  batch={batch}  features={features}  hidden={hidden}  out={out}  steps={steps}")
@@ -235,10 +234,10 @@ def main() -> None:
     print(f"exporting to {path}")
     print("(compile happens lazily during warmup; only steady-state run time is reported)")
 
-    blowtorch_rows = [
-        ("blowtorch Sequential", "seq", False, lambda: bt_seq(x, device, hidden, out, False)),
-        ("blowtorch Sequential", "seq", True, lambda: bt_seq(x, device, hidden, out, True)),
-        ("blowtorch Sequential", "step", False, lambda: bt_step(x, device, hidden, out)),
+    crematorium_rows = [
+        ("crematorium Sequential", "seq", False, lambda: bt_seq(x, device, hidden, out, False)),
+        ("crematorium Sequential", "seq", True, lambda: bt_seq(x, device, hidden, out, True)),
+        ("crematorium Sequential", "step", False, lambda: bt_step(x, device, hidden, out)),
     ]
 
     other_rows = [
@@ -253,8 +252,8 @@ def main() -> None:
         writer.writerow(["name", "variant", "compiled", "ms_per_step", "steps_per_sec"])
 
         base = None
-        print("\n[ blowtorch Sequential ]")
-        for name, variant, compiled, make in blowtorch_rows:
+        print("\n[ crematorium Sequential ]")
+        for name, variant, compiled, make in crematorium_rows:
             label = f"{name} {variant}" + (" compile" if compiled else " eager")
             res = measure(make, device, args.warmup, args.reps)
             if res is None:

@@ -1,10 +1,10 @@
-from blowtorch import (
+from crematorium import (
     StepOutput,
     Tensor,
     clamp_positive,
 )
-from blowtorch.snn import Reset, SnnModule
-from blowtorch.util import positive
+from crematorium.snn import Reset, SnnModule
+from crematorium.util import positive
 
 
 class SRM0(SnnModule):

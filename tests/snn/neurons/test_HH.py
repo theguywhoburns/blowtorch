@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from blowtorch.snn import HH, SnnModule
+from crematorium.snn import HH, SnnModule
 
 B, F = 4, 8
 T = 50
@@ -187,7 +187,7 @@ def test_hh_spike_grad_default_is_used():
 
 
 def test_hh_importable_from_snn():
-    from blowtorch.snn import HH as snn_HH
+    from crematorium.snn import HH as snn_HH
 
     assert snn_HH is HH
     assert HH.__mro__[1] is SnnModule

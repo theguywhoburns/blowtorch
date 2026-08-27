@@ -1,8 +1,8 @@
 from .base import *
-from . import nn
+from . import nn as nn
 
 __all__ = [
-    "BlowtorchModule",
+    "crematoriumModule",
     "Tensor",
     "StepOutput",
     "Param",

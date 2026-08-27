@@ -1,10 +1,10 @@
-from blowtorch import (
+from crematorium import (
     StepOutput,
     Tensor,
     clamp_positive,
 )
-from blowtorch.snn import SnnModule
-from blowtorch.util import positive
+from crematorium.snn import SnnModule
+from crematorium.util import positive
 
 
 class HH(SnnModule):
@@ -24,6 +24,9 @@ class HH(SnnModule):
         mem += (x - INa - IK - IL) / C * dt
         dm/dt = am * (1 - m) - bm * m   (am, bm = rate functions of mem)
         spk = spike_grad(mem - threshold)
+
+    Note: ``substeps`` unrolls inside ``fast_sequence_()``'s compiled trace;
+    compile time scales linearly with it.
     """
 
     dt = SnnModule.Constant(default=0.01, dtype=float)

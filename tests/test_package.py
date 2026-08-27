@@ -1,9 +1,9 @@
-import blowtorch
+import crematorium
 
 
 def test_public_exports_match_all():
     expected = [
-        "BlowtorchModule",
+        "crematoriumModule",
         "Tensor",
         "StepOutput",
         "Param",
@@ -23,21 +23,21 @@ def test_public_exports_match_all():
         "get_validation",
         "no_validation",
     ]
-    assert blowtorch.__all__ == expected
+    assert crematorium.__all__ == expected
 
     for name in expected:
-        assert callable(getattr(blowtorch, name))
+        assert callable(getattr(crematorium, name))
 
     for name in ("set_validation", "get_validation", "no_validation"):
-        assert callable(getattr(blowtorch, name))
+        assert callable(getattr(crematorium, name))
 
 
 def test_star_import_exposes_core_names():
     ns = {}
-    exec("from blowtorch import *", ns)
+    exec("from crematorium import *", ns)
 
     for name in (
-        "BlowtorchModule",
+        "crematoriumModule",
         "Tensor",
         "StepOutput",
         "Param",

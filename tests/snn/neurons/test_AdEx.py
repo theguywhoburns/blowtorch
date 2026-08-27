@@ -3,8 +3,8 @@ from __future__ import annotations
 import pytest
 import torch
 
-from blowtorch.base import clamp_positive
-from blowtorch.snn import AdEx, Reset, SnnModule
+from crematorium.base import clamp_positive
+from crematorium.snn import AdEx, SnnModule
 
 B, F = 4, 8
 T = 5

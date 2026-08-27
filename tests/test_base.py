@@ -6,8 +6,8 @@ from dataclasses import FrozenInstanceError
 import pytest
 import torch
 
-from blowtorch import (
-    BlowtorchModule,
+from crematorium import (
+    crematoriumModule,
     OutputSpec,
     Param,
     ParamSpec,
@@ -20,8 +20,8 @@ from blowtorch import (
     set_sequence_scan_chunk,
     set_validation,
 )
-from blowtorch.snn import SnnModule, hard_zero_reset, zero_reset
-from blowtorch.snn.neurons.LIF import LIF
+from crematorium.snn import SnnModule, hard_zero_reset, zero_reset
+from crematorium.snn.neurons.LIF import LIF
 
 B, F = 4, 8
 X = torch.randn(B, F)
@@ -34,18 +34,18 @@ X_SEQ = torch.randn(T, B, F)
 # ----------------------------------------------------------------------
 
 
-class _Leaky(BlowtorchModule):
+class _Leaky(crematoriumModule):
     """Single output (mem), single state (mem). Pure leaky integrator."""
 
     class Params:
-        beta: float = BlowtorchModule.Param(
+        beta: float = crematoriumModule.Param(
             0.5,
             constraint=clamp_unit_interval,
         )
 
     class Specs:
-        out = BlowtorchModule.OutputSpec(differentiable=False)
-        mem = BlowtorchModule.StateSpec()
+        out = crematoriumModule.OutputSpec(differentiable=False)
+        mem = crematoriumModule.StateSpec()
 
     def _step(self, x, mem):
         beta, = self.constrained()
@@ -53,126 +53,126 @@ class _Leaky(BlowtorchModule):
         return mem, mem          # (out, next_mem)
 
 
-class _TwoOut(BlowtorchModule):
+class _TwoOut(crematoriumModule):
     """Two outputs + one state: multi-output path."""
 
     class Params:
-        beta: float = BlowtorchModule.Param(0.5)
+        beta: float = crematoriumModule.Param(0.5)
 
     class Specs:
-        o1 = BlowtorchModule.OutputSpec()
-        o2 = BlowtorchModule.OutputSpec(differentiable=False)
-        mem = BlowtorchModule.StateSpec()
+        o1 = crematoriumModule.OutputSpec()
+        o2 = crematoriumModule.OutputSpec(differentiable=False)
+        mem = crematoriumModule.StateSpec()
 
     def _step(self, x, mem):
         mem = self.beta * mem + x
         return mem, mem * 2.0, mem
 
 
-class _WrongCount(BlowtorchModule):
+class _WrongCount(crematoriumModule):
     """_step returns 2 tensors but Specs declares 3 entries."""
 
     class Specs:
-        o = BlowtorchModule.OutputSpec()
-        s1 = BlowtorchModule.StateSpec()
-        s2 = BlowtorchModule.StateSpec()
+        o = crematoriumModule.OutputSpec()
+        s1 = crematoriumModule.StateSpec()
+        s2 = crematoriumModule.StateSpec()
 
     def _step(self, x, s1, s2):
         return x, x              # wrong: only 2
 
 
-class _NoTuple(BlowtorchModule):
+class _NoTuple(crematoriumModule):
     """_step returns a bare Tensor, not a tuple."""
 
     class Specs:
-        o = BlowtorchModule.OutputSpec()
-        s = BlowtorchModule.StateSpec()
+        o = crematoriumModule.OutputSpec()
+        s = crematoriumModule.StateSpec()
 
     def _step(self, x, s):
         return x                 # wrong: not a tuple
 
 
-class _FixedShapeHidden(BlowtorchModule):
+class _FixedShapeHidden(crematoriumModule):
     """StateSpec with an explicit tuple shape (hidden allocation honors it)."""
 
     class Specs:
-        o = BlowtorchModule.OutputSpec(differentiable=False)
-        mem = BlowtorchModule.StateSpec(shape=(B, 2 * F))
+        o = crematoriumModule.OutputSpec(differentiable=False)
+        mem = crematoriumModule.StateSpec(shape=(B, 2 * F))
 
     def _step(self, x, mem):
         return torch.zeros_like(x), mem
 
 
-class _NoneShape(BlowtorchModule):
+class _NoneShape(crematoriumModule):
     """StateSpec with shape=None (treated as "input", follows the input shape)."""
 
     class Specs:
-        o = BlowtorchModule.OutputSpec(differentiable=False)
-        mem = BlowtorchModule.StateSpec(shape=None)
+        o = crematoriumModule.OutputSpec(differentiable=False)
+        mem = crematoriumModule.StateSpec(shape=None)
 
     def _step(self, x, mem):
         return torch.zeros_like(x), mem
 
 
-class _CallableDefault(BlowtorchModule):
+class _CallableDefault(crematoriumModule):
     """Spec default that is a callable on the module."""
 
     class Specs:
-        o = BlowtorchModule.OutputSpec(differentiable=False)
-        mem = BlowtorchModule.StateSpec(default=lambda m: 0.25)
+        o = crematoriumModule.OutputSpec(differentiable=False)
+        mem = crematoriumModule.StateSpec(default=lambda m: 0.25)
 
     def _step(self, x, mem):
         return torch.zeros_like(x), mem
 
 
-class _NoParams(BlowtorchModule):
+class _NoParams(crematoriumModule):
     """Empty Params + one output/state."""
 
     class Specs:
-        o = BlowtorchModule.OutputSpec()
-        s = BlowtorchModule.StateSpec()
+        o = crematoriumModule.OutputSpec()
+        s = crematoriumModule.StateSpec()
 
     def _step(self, x, s):
         return x, x
 
 
-class _ForceLearn(BlowtorchModule):
+class _ForceLearn(crematoriumModule):
     """Spec-level force_learn=True."""
 
     class Params:
-        beta: float = BlowtorchModule.Param(0.5, force_learn=True)
+        beta: float = crematoriumModule.Param(0.5, force_learn=True)
 
     class Specs:
-        o = BlowtorchModule.OutputSpec()
-        s = BlowtorchModule.StateSpec()
+        o = crematoriumModule.OutputSpec()
+        s = crematoriumModule.StateSpec()
 
     def _step(self, x, s):
         return x, x
 
 
-class _NoneDefault(BlowtorchModule):
+class _NoneDefault(crematoriumModule):
     """Param whose default is None: construction must raise."""
 
     class Params:
-        a: float = BlowtorchModule.Param(None)
+        a: float = crematoriumModule.Param(None)
 
     class Specs:
-        o = BlowtorchModule.OutputSpec()
-        s = BlowtorchModule.StateSpec()
+        o = crematoriumModule.OutputSpec()
+        s = crematoriumModule.StateSpec()
 
     def _step(self, x, s):
         return x, x
 
 
-class _PlainRNN(BlowtorchModule):
+class _PlainRNN(crematoriumModule):
     """Generic non-SNN RNN cell: pure state threading, no spike semantics."""
 
     class Params:
-        w: float = BlowtorchModule.Param(0.5)
+        w: float = crematoriumModule.Param(0.5)
 
     class Specs:
-        out = BlowtorchModule.OutputSpec()
-        h = BlowtorchModule.StateSpec()
+        out = crematoriumModule.OutputSpec()
+        h = crematoriumModule.StateSpec()
 
     def _step(self, x, h):
         h = torch.tanh(self.w * h + x)
@@ -217,13 +217,13 @@ def test_constraints_grad_compatible():
 def test_safe_exp_matches_exp_where_finite():
     for dtype in (torch.float32, torch.float64):
         x = torch.linspace(-100.0, 80.0, 200, dtype=dtype)
-        assert torch.equal(BlowtorchModule.safe_exp(x), x.exp())
+        assert torch.equal(crematoriumModule.safe_exp(x), x.exp())
 
 
 def test_safe_exp_stays_finite_at_extremes():
     for dtype in (torch.float32, torch.float64):
         x = torch.tensor([-1e6, 0.0, 1e6, 1e30], dtype=dtype)
-        out = BlowtorchModule.safe_exp(x)
+        out = crematoriumModule.safe_exp(x)
         assert torch.isfinite(out).all()
         assert torch.equal(out[1], torch.tensor(1.0, dtype=dtype))
         max_arg = torch.log(torch.tensor(torch.finfo(dtype).max, dtype=dtype)) - 1
@@ -232,7 +232,7 @@ def test_safe_exp_stays_finite_at_extremes():
 
 def test_safe_exp_grad_stays_finite():
     x = torch.tensor([-1e6, 1e6], requires_grad=True)
-    BlowtorchModule.safe_exp(x).sum().backward()
+    crematoriumModule.safe_exp(x).sum().backward()
     assert x.grad is not None
     assert torch.isfinite(x.grad).all()
 
@@ -279,20 +279,20 @@ def test_module_metadata_collected():
 
 
 def test_mro_param_merge():
-    class _Base(BlowtorchModule):
+    class _Base(crematoriumModule):
         class Params:
-            beta: float = BlowtorchModule.Param(0.5)
+            beta: float = crematoriumModule.Param(0.5)
 
         class Specs:
-            o = BlowtorchModule.OutputSpec()
-            s = BlowtorchModule.StateSpec()
+            o = crematoriumModule.OutputSpec()
+            s = crematoriumModule.StateSpec()
 
         def _step(self, x, s):
             return x, x
 
     class _Child(_Base):
         class Params:
-            beta: float = BlowtorchModule.Param(0.9)
+            beta: float = crematoriumModule.Param(0.9)
 
     c = _Child()
     assert "beta" in c._bt_param_specs
@@ -300,17 +300,17 @@ def test_mro_param_merge():
 
 
 def test_mro_spec_merge():
-    class _Base(BlowtorchModule):
+    class _Base(crematoriumModule):
         class Specs:
-            o = BlowtorchModule.OutputSpec()
-            s = BlowtorchModule.StateSpec()
+            o = crematoriumModule.OutputSpec()
+            s = crematoriumModule.StateSpec()
 
         def _step(self, x, s):
             return x, x
 
     class _Child(_Base):
         class Specs:
-            s2 = BlowtorchModule.StateSpec()
+            s2 = crematoriumModule.StateSpec()
 
         def _step(self, x, s, s2):
             return x, s, s2
@@ -385,14 +385,14 @@ def test_invalid_param_name_raises():
         "Specs",
         (),
         {
-            "o": BlowtorchModule.OutputSpec(),
-            "s": BlowtorchModule.StateSpec(),
+            "o": crematoriumModule.OutputSpec(),
+            "s": crematoriumModule.StateSpec(),
         },
     )
     # A keyword param name is rejected while the runtime signature is built
     # (at class creation, before __init__/`_install_constrained` runs).
     with pytest.raises(ValueError, match="not a valid parameter name"):
-        type("M", (BlowtorchModule,), {"Params": P, "Specs": S, "_step": _step})
+        type("M", (crematoriumModule,), {"Params": P, "Specs": S, "_step": _step})
 
 
 def test_constrained_returns_declaration_order():
@@ -1080,7 +1080,7 @@ def test_forward_sequence_eager_chunked_path():
 
 
 def test_set_sequence_scan_chunk_preserves_results():
-    from blowtorch.base import _SEQUENCE_SCAN_CHUNK as _default_chunk
+    from crematorium.base import _SEQUENCE_SCAN_CHUNK as _default_chunk
 
     torch.manual_seed(0)
     x_seq = torch.randn(T, B, F)
@@ -1343,7 +1343,7 @@ def test_compile_clone_gating_default_no_clone(monkeypatch):
 
         return wrapped
 
-    monkeypatch.setattr("blowtorch.base.torch.compile", fake_compile)
+    monkeypatch.setattr("crematorium.base.torch.compile", fake_compile)
 
     m = _Leaky(init_hidden=False)
     m.compile_sequence_scan(mode="default")
@@ -1362,7 +1362,7 @@ def test_compile_clone_gating_reduce_overhead_clones(monkeypatch):
 
         return wrapped
 
-    monkeypatch.setattr("blowtorch.base.torch.compile", fake_compile)
+    monkeypatch.setattr("crematorium.base.torch.compile", fake_compile)
 
     m = _TwoOut(init_hidden=False)
     m.compile_sequence_scan(mode="reduce-overhead")
@@ -1407,7 +1407,7 @@ def test_fast_sequence_default_mode_is_default(monkeypatch):
         captured.update(kw)
         return fn
 
-    monkeypatch.setattr("blowtorch.base.torch.compile", fake_compile)
+    monkeypatch.setattr("crematorium.base.torch.compile", fake_compile)
 
     m = _Leaky()
     m.fast_sequence_()
@@ -1422,7 +1422,7 @@ def test_compile_sequence_scan_returns_self(monkeypatch):
     def fake_compile(fn, **kw):
         return fn
 
-    monkeypatch.setattr("blowtorch.base.torch.compile", fake_compile)
+    monkeypatch.setattr("crematorium.base.torch.compile", fake_compile)
     m = _Leaky()
     assert m.compile_sequence_scan() is m
 
@@ -1568,9 +1568,9 @@ def test_signature_param_kwargs():
 
 
 def test_signature_extra_init_params_only_for_snn():
-    class _Plain(BlowtorchModule):
+    class _Plain(crematoriumModule):
         class Specs:
-            o = BlowtorchModule.OutputSpec()
+            o = crematoriumModule.OutputSpec()
 
         def _step(self, x):
             return x

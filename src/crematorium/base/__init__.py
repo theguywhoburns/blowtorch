@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Any, Callable, Optional
 
-import torch
 import torch.nn as nn
 
 from .collection import collect_metadata, generate_signature
@@ -18,7 +17,6 @@ from .params import ParamMixin
 from .repr import ReprMixin
 from .scan import (
     SequenceScanMixin,
-    _SEQUENCE_SCAN_CHUNK,
     sequence_scan,
     set_sequence_scan_chunk,
 )
@@ -50,7 +48,7 @@ from .validation import (
 )
 
 __all__ = [
-    "BlowtorchModule",
+    "crematoriumModule",
     "Tensor",
     "StepOutput",
     "InputTensor",
@@ -66,6 +64,7 @@ __all__ = [
     "identity",
     "clamp_unit_interval",
     "clamp_positive",
+    "sequence_scan",
     "set_sequence_scan_chunk",
     "set_validation",
     "get_validation",
@@ -73,9 +72,9 @@ __all__ = [
 ]
 
 
-# Generic Blowtorch module
+# Generic crematorium module
 
-class BlowtorchModule(
+class crematoriumModule(
     InputMixin,
     ParamMixin,
     ConstantMixin,
@@ -104,7 +103,7 @@ class BlowtorchModule(
         def _step(self, x, *state):
             ...
 
-    BlowtorchModule handles:
+    crematoriumModule handles:
       - parameter creation
       - learnable / force_learn behavior (an explicit ``learnable_<param>=False``
         overrides a spec-level ``force_learn=True``)
@@ -116,7 +115,7 @@ class BlowtorchModule(
       - detach
       - basic sequence scan
 
-    BlowtorchModule is a pure state-threading engine: it makes no assumptions
+    crematoriumModule is a pure state-threading engine: it makes no assumptions
     about the semantics of the tensors returned by ``_step`` (no notion of a
     "spike" output or of resetting state). Subclasses may hook the raw step
     output through the ``_post_step`` method, which is applied before the
@@ -139,7 +138,7 @@ class BlowtorchModule(
       or with an ``InputSpec`` value for extra semantics::
 
           class Inputs:
-              x: Tensor = BlowtorchModule.Input(primary=True)
+              x: Tensor = crematoriumModule.Input(primary=True)
               inh: Tensor
 
       ``_step`` receives the declared inputs positionally, in declaration order
@@ -156,7 +155,7 @@ class BlowtorchModule(
       State shapes may reference any input by name::
 
           class Specs:
-              v = BlowtorchModule.StateSpec(shape="inh")
+              v = crematoriumModule.StateSpec(shape="inh")
 
       Input names must be valid non-keyword Python identifiers and must not
       collide with parameter, constant, output, or state names.

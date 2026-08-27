@@ -1,6 +1,6 @@
 import pytest
 
-from blowtorch.base import get_validation, set_validation
+from crematorium.base import get_validation, set_validation
 
 
 @pytest.fixture(autouse=True)

@@ -1,9 +1,9 @@
-from blowtorch import (
+from crematorium import (
     StepOutput,
     Tensor,
     clamp_positive,
 )
-from blowtorch.snn import Reset, SnnModule
+from crematorium.snn import Reset, SnnModule
 
 
 class AdEx(SnnModule):

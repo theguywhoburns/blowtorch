@@ -1,7 +1,7 @@
 # Resets
 
 Resets are a strictly **SNN** feature: only `SnnModule` subclasses may declare
-them. The base `BlowtorchModule` is a pure state-threading engine and makes no
+them. The base `crematoriumModule` is a pure state-threading engine and makes no
 assumptions about spikes or resets; `SnnModule` overrides the generic
 `_post_step` hook to apply resets to the pre-reset state returned by `_step`.
 
@@ -22,15 +22,15 @@ value (not the raw parameter) is used.
 
 ## Kinds
 
-| factory                 | effect                                                |
-| ----------------------- | ----------------------------------------------------- |
-| `Reset.none()`          | nothing (default)                                     |
-| `Reset.subtract("p")`   | `state = state - spk * p` (LIF soft reset)            |
-| `Reset.zero()`          | `state = state * (1 - spk)` (multiplicative hard reset) |
-| `Reset.hard_zero()`     | `state = state.masked_fill(spk > 0, 0)` (masked hard reset) |
-| `Reset.set("p")`        | `state = (1 - spk) * state + spk * p` (reset to a value) |
-| `Reset.add("p")`        | `state = state + spk * p` (inject, e.g. AdEx adaptation) |
-| `Reset.custom(fn)`      | `state = self.fn(state, spk)` (per-spike method)      |
+| factory               | effect                                                      |
+| --------------------- | ----------------------------------------------------------- |
+| `Reset.none()`        | nothing (default)                                           |
+| `Reset.subtract("p")` | `state = state - spk * p` (LIF soft reset)                  |
+| `Reset.zero()`        | `state = state * (1 - spk)` (multiplicative hard reset)     |
+| `Reset.hard_zero()`   | `state = state.masked_fill(spk > 0, 0)` (masked hard reset) |
+| `Reset.set("p")`      | `state = (1 - spk) * state + spk * p` (reset to a value)    |
+| `Reset.add("p")`      | `state = state + spk * p` (inject, e.g. AdEx adaptation)    |
+| `Reset.custom(fn)`    | `state = self.fn(state, spk)` (per-spike method)            |
 
 ## Custom resets
 

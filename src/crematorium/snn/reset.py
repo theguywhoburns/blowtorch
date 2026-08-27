@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Callable
 
 import torch
 
-from blowtorch.base import ParamSpec, StateSpec, Tensor
+from crematorium.base import ParamSpec, StateSpec, Tensor
 
 if TYPE_CHECKING:
     from .base import SnnModule

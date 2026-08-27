@@ -1,0 +1,79 @@
+name: release
+
+# Publish on tags: `git tag v0.1.0 && git push --tags`.
+#
+# PyPI publishing needs no secrets: the build job authenticates through
+# GitHub OIDC (trusted publishing). Before the first release, register this
+# repo as a publisher on PyPI once (PyPI -> project -> Publishing ->
+# "Add a new pending publisher": GitHub, owner `theguywhoburns`, repo
+# `crematorium`, workflow `release.yml`). A `PYPI_TOKEN` secret is honored as a
+# fallback if preferred.
+#
+# Pre-release tags (e.g. `v0.1.0rc1`) additionally dry-run to TestPyPI.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  id-token: write # OIDC for trusted publishing
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          retention-days: 14
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+
+      - name: Publish to PyPI
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
+        run: uv publish
+
+  publish-testpypi:
+    needs: build
+    if: contains(github.ref_name, 'rc') # pre-releases only
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Publish to TestPyPI
+        run: uv publish --publish-url https://test.pypi.org/legacy/

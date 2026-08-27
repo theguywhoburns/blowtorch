@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from blowtorch import StepOutput, Tensor, clamp_positive
-from blowtorch.snn import Reset, SnnModule
-from blowtorch.util.surrogate_gradients import atan_surrogate
+from crematorium import StepOutput, Tensor, clamp_positive
+from crematorium.snn import Reset, SnnModule
 
 
 class MCN(SnnModule):
@@ -29,7 +28,7 @@ class MCN(SnnModule):
 
     The paper's surrogate ``d(spk)/du = 2*tau_L/(4 + (pi*tau_L*u)**2)`` is
     exactly the classic ATan surrogate with ``beta = tau_L`` (see
-    ``blowtorch.util.atan_surrogate``); if you change ``tau_L`` from its
+    ``crematorium.util.atan_surrogate``); if you change ``tau_L`` from its
     default, pass ``spike_grad=atan_surrogate(tau_L)`` explicitly.
 
     Defaults match the paper's Fig. 3(F): ``tau_A = tau_B = 2.0``,

@@ -15,9 +15,9 @@ from __future__ import annotations
 
 import torch
 
-from blowtorch.nn import Sequential
-from blowtorch.snn import LIF
-from blowtorch.util import SpikeTrain
+from crematorium.nn import Sequential
+from crematorium.snn import LIF
+from crematorium.util import SpikeTrain
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 

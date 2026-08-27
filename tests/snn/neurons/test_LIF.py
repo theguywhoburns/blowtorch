@@ -5,8 +5,8 @@ import inspect
 import pytest
 import torch
 
-from blowtorch.snn import Reset, SnnModule, subtract_reset
-from blowtorch.snn.neurons.LIF import LIF
+from crematorium.snn import Reset, SnnModule, subtract_reset
+from crematorium.snn.neurons.LIF import LIF
 
 B, F = 4, 8
 T = 5

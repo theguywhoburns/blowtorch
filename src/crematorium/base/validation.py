@@ -15,7 +15,7 @@ from .specs import (
 )
 
 if TYPE_CHECKING:
-    from . import BlowtorchModule
+    pass
 
 # Global validation toggle
 
@@ -50,7 +50,7 @@ def no_validation():
 
 # The checks below are free functions, so mixin and host code both call them
 # with `self` no matter how `self` is typed. They operate on the minimal host
-# surface declared by _ValidationHost; BlowtorchModule and SequenceScanMixin
+# surface declared by _ValidationHost; crematoriumModule and SequenceScanMixin
 # both satisfy it structurally.
 
 

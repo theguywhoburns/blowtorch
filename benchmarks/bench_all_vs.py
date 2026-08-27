@@ -1,11 +1,11 @@
-"""Benchmark blowtorch LIF vs snnTorch and Norse - sequence and per-step modes.
+"""Benchmark crematorium LIF vs snnTorch and Norse - sequence and per-step modes.
 
 Run from the repo root:
 
     uv run --group bench python benchmarks/bench_all_vs.py [--steps 1000]
 
 Rows:
-    blowtorch LIF   sequence (forward_sequence) and per-step (forward),
+    crematorium LIF   sequence (forward_sequence) and per-step (forward),
                     each in hidden/explicit x eager/compiled.
                     Compiled sequences go through fast_sequence_()
                     (compile-the-scan, mode="default").
@@ -30,8 +30,7 @@ from pathlib import Path
 
 import torch
 
-import blowtorch as bt
-from blowtorch.snn import LIF as BtLIF
+from crematorium.snn import LIF as BtLIF
 
 BETA = 0.9
 
@@ -90,7 +89,7 @@ def timeit(fn, device: torch.device, warmup: int, reps: int) -> tuple[float, flo
 
 
 
-# Blowtorch LIF
+# crematorium LIF
 
 
 
@@ -196,7 +195,7 @@ def norse_step(x: torch.Tensor, device: torch.device, compiled: bool):
 def _norse_params():
     import norse.torch as nt
 
-    # Euler mapping to blowtorch LIF(beta=0.9): membrane decays 0.9/step,
+    # Euler mapping to crematorium LIF(beta=0.9): membrane decays 0.9/step,
     # input current fully consumed each step (single compartment).
     return nt.LIFParameters(
         tau_syn_inv=torch.as_tensor(1000.0),
@@ -240,22 +239,22 @@ def main() -> None:
 
     out_dir = args.out
     out_dir.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    stamp = datetime.now().astimezone().strftime("%Y%m%d_%H%M%S")
     path = out_dir / f"bench_s{steps}_b{batch}_f{features}_{stamp}.csv"
 
     print(f"device={device}  batch={batch}  features={features}  steps={steps}")
     print(f"exporting to {path}")
     print("(compile happens lazily during warmup; only steady-state run time is reported)")
 
-    blowtorch_rows = [
-        ("blowtorch LIF", "seq hidden", False, lambda: bt_sequence(x, device, True, False)),
-        ("blowtorch LIF", "seq hidden", True, lambda: bt_sequence(x, device, True, True)),
-        ("blowtorch LIF", "seq explicit", False, lambda: bt_sequence(x, device, False, False)),
-        ("blowtorch LIF", "seq explicit", True, lambda: bt_sequence(x, device, False, True)),
-        ("blowtorch LIF", "step hidden", False, lambda: bt_step(x, device, True, False)),
-        ("blowtorch LIF", "step hidden", True, lambda: bt_step(x, device, True, True)),
-        ("blowtorch LIF", "step explicit", False, lambda: bt_step(x, device, False, False)),
-        ("blowtorch LIF", "step explicit", True, lambda: bt_step(x, device, False, True)),
+    crematorium_rows = [
+        ("crematorium LIF", "seq hidden", False, lambda: bt_sequence(x, device, True, False)),
+        ("crematorium LIF", "seq hidden", True, lambda: bt_sequence(x, device, True, True)),
+        ("crematorium LIF", "seq explicit", False, lambda: bt_sequence(x, device, False, False)),
+        ("crematorium LIF", "seq explicit", True, lambda: bt_sequence(x, device, False, True)),
+        ("crematorium LIF", "step hidden", False, lambda: bt_step(x, device, True, False)),
+        ("crematorium LIF", "step hidden", True, lambda: bt_step(x, device, True, True)),
+        ("crematorium LIF", "step explicit", False, lambda: bt_step(x, device, False, False)),
+        ("crematorium LIF", "step explicit", True, lambda: bt_step(x, device, False, True)),
     ]
 
     other_rows = [
@@ -272,8 +271,8 @@ def main() -> None:
         writer.writerow(["name", "variant", "compiled", "ms_per_step", "steps_per_sec"])
 
         base = None
-        print("\n[ blowtorch LIF ]")
-        for name, variant, compiled, make in blowtorch_rows:
+        print("\n[ crematorium LIF ]")
+        for name, variant, compiled, make in crematorium_rows:
             label = f"{name} {variant}" + (" compile" if compiled else " eager")
             res = measure(make, device, args.warmup, args.reps)
             if res is None:

@@ -4,15 +4,15 @@ import inspect
 import types
 from typing import Any, Callable, Optional
 
-from blowtorch import (
-    BlowtorchModule,
+from crematorium import (
+    crematoriumModule,
     ParamSpec,
     StepOutput,
     Tensor,
     extend_specs,
     identity,
 )
-from blowtorch.util.surrogate_gradients import (
+from crematorium.util.surrogate_gradients import (
     default_spike_grad,
     straight_through_surrogate,
 )
@@ -27,9 +27,9 @@ __all__ = [
 
 
 @extend_specs(reset=ResetHandler)
-class SnnModule(BlowtorchModule):
+class SnnModule(crematoriumModule):
     """
-    Spike-specific behavior on top of BlowtorchModule.
+    Spike-specific behavior on top of crematoriumModule.
 
     Adds:
       - ``spike_grad``: surrogate spike function, ``step(x)`` fires when the
@@ -189,7 +189,7 @@ class SnnModule(BlowtorchModule):
         Expression resolving ``param_name`` to its constrained value.
 
         Matches the accessor ``_bt_constrained`` generates in
-        ``BlowtorchModule._install_constrained`` so resets act on the same
+        ``crematoriumModule._install_constrained`` so resets act on the same
         values ``_step`` spikes against.
         """
         param_names = tuple(self._bt_param_specs.keys())

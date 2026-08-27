@@ -5,8 +5,8 @@ import inspect
 import pytest
 import torch
 
-from blowtorch import BlowtorchModule
-from blowtorch.snn import (
+from crematorium import crematoriumModule
+from crematorium.snn import (
     Reset,
     SnnModule,
     default_spike_grad,
@@ -158,8 +158,8 @@ def test_default_spike_grad_is_default_spike_grad():
     assert m.spike_grad is default_spike_grad
 
 
-def test_snn_module_is_blowtorch_module():
-    assert issubclass(SnnModule, BlowtorchModule)
+def test_snn_module_is_crematorium_module():
+    assert issubclass(SnnModule, crematoriumModule)
 
 
 def test_signature_includes_spike_grad_only():

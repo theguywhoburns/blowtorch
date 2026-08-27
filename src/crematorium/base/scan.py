@@ -20,7 +20,7 @@ from .validation import (
 )
 
 if TYPE_CHECKING:
-    from . import BlowtorchModule
+    pass
 
 # In eager scans, batch this many steps into a single index_copy_ scatter so
 # peak memory stays at input + output (no per-step (B, F) list held for stack).
@@ -127,10 +127,10 @@ def sequence_scan(
 
 
 class SequenceScanMixin:
-    """Time-major sequence scans over a BlowtorchModule.
+    """Time-major sequence scans over a crematoriumModule.
 
     Members the mixin needs from the host are declared as type-only stubs
-    below (annotations set no runtime attribute, so BlowtorchModule's real
+    below (annotations set no runtime attribute, so crematoriumModule's real
     implementations always win the MRO). The stub surface also structurally
     satisfies ``_ValidationHost`` so the free validation helpers accept
     ``self``.
@@ -374,7 +374,7 @@ class SequenceScanMixin:
         Note on sequence length: the compiled unit is the fully unrolled T-step
         scan, so compilation cost and peak memory grow with T. It is fast up to
         roughly T~1000 and impractical (``RecursionError`` in inductor, or
-        minutes-long compiles) beyond T~3000. This is not specific to blowtorch:
+        minutes-long compiles) beyond T~3000. This is not specific to crematorium:
         norse's compiled sequence and any fully unrolled scan hit the same wall.
         For very long sequences, split the input into chunks and call
         ``forward_sequence`` per chunk.
