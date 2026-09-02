@@ -42,10 +42,8 @@ class SerializationMixin:
             return
 
         for name, t in state.items():
-            if name in self._buffers:
-                self._buffers[name] = t
-            else:
-                self._buffers[name] = t
+            if name not in self._buffers:
                 self._non_persistent_buffers_set.add(name)
+            self._buffers[name] = t
 
         self._pk_allocated = True

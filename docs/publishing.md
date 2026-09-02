@@ -12,9 +12,8 @@ No secrets are required — the workflow uses PyPI's trusted publishing
 ## Prerequisites (one-time)
 
 1. **Name**: the distribution name in `pyproject.toml` must be free on PyPI.
-   Note that `pyrokinesis` is already taken by an unrelated project — pick a
-   name like `pyrokinesis-snn` (the import inside the code stays `pyrokinesis`).
-   Confirm it's free: <https://pypi.org/pypi/<name>/json> should 404.
+   `pyrokinesis` is free as of 2026-09-02 (`https://pypi.org/pypi/pyrokinesis/json`
+   404s; search only returns `pyrokinetics` typo). Confirm before first publish.
 
 2. **Trusted publishing** (no token path): on PyPI, create the project and
    register this repo as a publisher (PyPI -> project -> Publishing ->

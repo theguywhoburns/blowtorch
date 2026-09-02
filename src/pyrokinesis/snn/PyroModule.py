@@ -211,4 +211,9 @@ class SnnModule(PyroModule):
             if spec is target:
                 return name
 
-        raise ValueError("Reset target ParamSpec not found in Params")
+        raise ValueError(
+            "Reset target ParamSpec not found in Params: a ParamSpec target "
+            "must be the exact object declared in this module's Params "
+            f"(targets are matched by identity; prefer the param name as a "
+            f"string, e.g. Reset.subtract({sorted(self._pk_param_specs)[0]!r}))"
+        )

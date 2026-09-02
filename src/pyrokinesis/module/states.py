@@ -131,6 +131,11 @@ class StateMixin:
         of the first inputs; later inputs with different batch/feature dims
         raise ``ValueError`` from the forward paths when validation is on.
         """
+        if not inputs:
+            raise TypeError(
+                f"{type(self).__name__}.allocate_like requires example "
+                f"inputs, e.g. allocate_like(x) or allocate_like((x, inh))"
+            )
         if self.init_hidden and not self._pk_allocated:
             if len(inputs) == 1:
                 canonical = self._pk_canonicalize_inputs(inputs[0])
@@ -180,6 +185,12 @@ class StateMixin:
         state: list[Tensor] = []
 
         for spec in self._pk_state_specs:
+            if isinstance(spec.shape, str) and spec.shape != "input":
+                raise ValueError(
+                    f"{type(self).__name__}.initial_state cannot resolve "
+                    f"StateSpec(shape={spec.shape!r}) without example inputs; "
+                    f"use initial_state_like(inputs)"
+                )
             shape = spec.shape if isinstance(spec.shape, tuple) else batch_shape
 
             state.append(
@@ -210,6 +221,12 @@ class StateMixin:
         state: list[Tensor] = []
 
         for spec in self._pk_state_specs:
+            if isinstance(spec.shape, str) and spec.shape != "input":
+                raise ValueError(
+                    f"{type(self).__name__}.zero_state cannot resolve "
+                    f"StateSpec(shape={spec.shape!r}) without example inputs; "
+                    f"use zero_state_like(inputs)"
+                )
             shape = spec.shape if isinstance(spec.shape, tuple) else batch_shape
 
             state.append(

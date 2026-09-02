@@ -21,8 +21,9 @@ state shapes; the container walks the whole stack on a meta-device pass
 (no math, no side effects) to learn the output shape and the shape of every
 state tensor.
 
-- Stateful layers must be **single-output** (one tensor per step). A layer
-  declaring multiple outputs raises at construction.
+- Stateful layers must be **single-input** and **single-output** (one tensor
+  per step). A layer declaring multiple inputs (e.g. `MCN`) or multiple outputs
+  raises at construction.
 - Stateless layers must return a **single tensor** per step.
 - Inputs are `(batch, features)` per step, `(time, batch, features)` for
   sequences.

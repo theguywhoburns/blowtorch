@@ -75,6 +75,11 @@ def build_params(
         if not tensor.is_floating_point():
             tensor = tensor.to(torch.get_default_dtype())
 
+        if isinstance(value, torch.Tensor):
+            # Never alias caller-owned storage: later mutation of the
+            # source tensor must not move the parameter.
+            tensor = tensor.detach().clone()
+
         module.register_parameter(
             name,
             nn.Parameter(
@@ -99,7 +104,13 @@ def build_params(
                 ) from None
 
         if isinstance(spec.dtype, type):
-            value = spec.dtype(value)
+            try:
+                value = spec.dtype(value)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"{type(module).__name__} {name}: value {value_orig!r} "
+                    f"cannot be stored as {spec.dtype.__name__}"
+                ) from None
             if value != value_orig:
                 raise ValueError(
                     f"{type(module).__name__} {name}: value {value_orig!r} "

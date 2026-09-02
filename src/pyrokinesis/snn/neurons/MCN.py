@@ -72,7 +72,7 @@ class MCN(SnnModule):
     class Specs:
         spk = SnnModule.OutputSpec(differentiable=False)
         V_b = SnnModule.StateSpec()
-        V_a = SnnModule.StateSpec()
+        V_a = SnnModule.StateSpec(shape="x_a")
         u = SnnModule.StateSpec(reset=Reset.subtract("threshold"))
 
     def _step(

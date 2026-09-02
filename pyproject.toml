@@ -101,9 +101,6 @@ markers = [
 filterwarnings = [
     # Emitted inside torch.compile itself; not actionable from our code.
     "ignore::DeprecationWarning:torch.jit._script:",
-    # Informational nudge for training scripts; equivalence tests
-    # legitimately exercise hidden-mode sequence forward under autograd.
-    "ignore:.*hidden-mode forward_sequence with gradients is usually slower.*:RuntimeWarning",
 ]
 
 [tool.pyright]

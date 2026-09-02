@@ -41,6 +41,11 @@ class SpikeTrain:
         shape: tuple[int, ...],
         dtype: torch.dtype = torch.int64,
     ) -> None:
+        if time_pointer.dim() != 1 or time_pointer.shape[0] != shape[0] + 1:
+            raise ValueError(
+                f"time_pointer must have shape (T+1,) = ({shape[0] + 1},), "
+                f"got {tuple(time_pointer.shape)}"
+            )
         self.spk_ind = spk_ind
         self.time_pointer = time_pointer
         self.shape = tuple(shape)

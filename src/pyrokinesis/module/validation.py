@@ -23,7 +23,12 @@ _GLOBAL_VALIDATE = True
 
 
 def set_validation(enabled: bool) -> None:
-    """Set the global default for validation."""
+    """Set the global default for validation.
+
+    Note: this mutates global state read on the hot path and is not
+    thread-safe. Use only from the main thread or protect with external
+    synchronization if you run concurrent training threads.
+    """
     global _GLOBAL_VALIDATE
     _GLOBAL_VALIDATE = bool(enabled)
 
@@ -39,6 +44,7 @@ def no_validation():
 
     Modules constructed with ``validate=None`` follow this toggle, so
     wrapping a hot loop in ``no_validation()`` skips their per-forward checks.
+    Not thread-safe (see :func:`set_validation`).
     """
     prev = get_validation()
     set_validation(False)

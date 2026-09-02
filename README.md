@@ -68,6 +68,10 @@ The extras are mutually exclusive: pick exactly one. The `rocm` extra also
 pulls the ROCm triton builds (`pytorch-triton-rocm`, `triton-rocm`) needed for
 compiled scans on AMD.
 
+> **Note:** the `[tool.uv.sources]` index selection for `torch` is `uv`-only;
+> plain `pip` will resolve `torch` from the default PyPI index regardless of
+> the extra. Use `uv` for the backend-pinned installs above.
+
 ## Quick start
 
 ```python
@@ -184,7 +188,9 @@ Key pieces:
 ## Bench vs snnTorch / Norse (LIF)
 
 **NOTE: Benchmarks ran on** `NVIDIA GeForce RTX 3050 Laptop GPU 4G`,
-T=1000, B=32, F=1024.
+T=1000, B=32, F=1024. Pyrokinesis runs with `validate=False` (snnTorch/Norse
+have no equivalent toggle) — steady-state `torch.compile` numbers are comparable
+either way.
 
 | library         | mode          | compiled | ms      | steps/s | peak MiB | vs pyrokinesis seq eager |
 | --------------- | ------------- | -------- | ------- | ------- | -------- | ------------------------ |
@@ -221,7 +227,7 @@ Memory is comparable in step mode (~127 MiB across all three). Sequence mode
 holds the full `(T, B, F)` spike stack: snnTorch/Norse ~378 MiB;
 pyrokinesis ~254 MiB for both hidden and explicit (eager and compiled) —
 ~1.5x less — because hidden buffers no longer hold a view into the `(T,B,F)`
-output (see `src/pyrokinesis/module/scan.py:320`).
+output (see `_store_hidden_seq_buffers` in `src/pyrokinesis/module/scan.py`).
 
 > **Ratio convention**: `bench_all_vs.py` prints `framework_time / pyrokinesis_seq_eager_time` as the trailing `(N.Nx)` factor. A value **below
 > 1.0 means the framework is faster** than pyrokinesis LIF seq eager. The base
@@ -258,7 +264,7 @@ pyrokinesis's own eager sequence, ~1.13x faster than compiled Norse (25.6 ms),
 compiled stack also uses ~3.3x less GPU memory than Norse (79.5 vs 260.1 MiB).
 
 snnTorch has no sequence module, so it runs the canonical per-step loop with
-explicit membrane state (the `step loop` rows). Its compiled row (114.5 ms) is
+explicit membrane state (the `step loop` rows). Its compiled row (101.9 ms) is
 not representative: torch.compile stalls on the Python state-threading loop.
 The eager loop is the fair comparison.
 

@@ -89,6 +89,12 @@ class Sequential(PyroModule):
             if not isinstance(layer, PyroModule):
                 continue
 
+            if len(layer._pk_input_names) != 1:
+                raise ValueError(
+                    f"Sequential requires single-input layers; "
+                    f"{type(layer).__name__} declares "
+                    f"{len(layer._pk_input_names)} inputs"
+                )
             if len(layer._pk_output_specs) != 1:
                 raise ValueError(
                     f"Sequential requires single-output layers; "

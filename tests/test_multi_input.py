@@ -209,7 +209,7 @@ def test_single_input_public_api_unchanged():
 def test_explicit_tuple_input_canonicalizes():
     m = _TwoInput()
     x, inh = _inputs()
-    state = m.initial_state((B, F))
+    state = m.initial_state_like((x, inh))
 
     out, next_state = m.step_state((x, inh), state)
 
@@ -222,7 +222,7 @@ def test_explicit_tuple_input_canonicalizes():
 def test_explicit_list_input_canonicalizes():
     m = _TwoInputListLike()
     x, inh = _inputs()
-    state = m.initial_state((B, F))
+    state = m.initial_state_like((x, inh))
 
     out, _ = m.step_state([x, inh], state)
 
@@ -232,7 +232,7 @@ def test_explicit_list_input_canonicalizes():
 def test_dict_input_ordered_by_declaration():
     m = _TwoInput()
     x, inh = _inputs()
-    state = m.initial_state((B, F))
+    state = m.initial_state_like((x, inh))
 
     out, _ = m.step_state({"inh": inh, "x": x}, state)
 
@@ -243,7 +243,7 @@ def test_dict_input_ordered_by_declaration():
 def test_wrong_tuple_length_raises():
     m = _TwoInput()
     x, inh = _inputs()
-    state = m.initial_state((B, F))
+    state = m.initial_state_like((x, inh))
 
     with pytest.raises(ValueError, match="expects 2 inputs, got 1"):
         m.step_state((x,), state)
@@ -254,8 +254,8 @@ def test_wrong_tuple_length_raises():
 
 def test_single_tensor_to_multi_input_raises():
     m = _TwoInput()
-    x, _ = _inputs()
-    state = m.initial_state((B, F))
+    x, inh = _inputs()
+    state = m.initial_state_like((x, inh))
 
     with pytest.raises(ValueError, match="got a single tensor"):
         m.step_state(x, state)
@@ -263,8 +263,8 @@ def test_single_tensor_to_multi_input_raises():
 
 def test_missing_dict_keys_raise():
     m = _TwoInput()
-    x, _ = _inputs()
-    state = m.initial_state((B, F))
+    x, inh = _inputs()
+    state = m.initial_state_like((x, inh))
 
     with pytest.raises(ValueError, match="missing keys \\['inh'\\]"):
         m.step_state({"x": x}, state)
@@ -272,8 +272,8 @@ def test_missing_dict_keys_raise():
 
 def test_non_tensor_input_raises():
     m = _TwoInput()
-    x, _ = _inputs()
-    state = m.initial_state((B, F))
+    x, inh = _inputs()
+    state = m.initial_state_like((x, inh))
 
     with pytest.raises(TypeError, match="must be tensors"):
         m.step_state((x, "nope"), state)
@@ -281,7 +281,7 @@ def test_non_tensor_input_raises():
 
 def test_unexpected_input_type_raises():
     m = _TwoInput()
-    state = m.initial_state((B, F))
+    state = m.initial_state_like(_inputs())
 
     with pytest.raises(TypeError, match="Tensor, a tuple/list of tensors"):
         m.step_state(3.14, state)  # type: ignore[arg-type]
@@ -526,7 +526,7 @@ def test_multi_input_eager_scan_without_state():
 def test_multi_input_eager_scan_with_explicit_state():
     m = _TwoInput()
     xs, is_ = _seqs()
-    state = m.initial_state((B, F))
+    state = m.initial_state_like((xs[0], is_[0]))
 
     _out, *final = m.forward_sequence((xs, is_), state)
 
@@ -616,7 +616,7 @@ def test_compiled_hidden_multi_input():
 def test_wrong_input_count_raises_when_validate_on():
     m = _TwoInput()
     x, _inh = _inputs()
-    state = m.initial_state((B, F))
+    state = m.initial_state_like((x, _inh))
 
     with pytest.raises(ValueError, match="expects 2 input tensors"):
         m._pk_forward_explicit((x,), state)

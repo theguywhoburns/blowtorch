@@ -55,6 +55,8 @@ def set_sequence_scan_chunk(chunk: int) -> None:
     values reduce dispatch overhead but increase peak memory; the optimal size
     depends on hardware, dtype, and batch/feature dims. Pass ``1`` to disable
     chunking.
+
+    Note: mutates global state and is not thread-safe.
     """
     global _SEQUENCE_SCAN_CHUNK
 
@@ -428,11 +430,10 @@ class SequenceScanMixin:
                     raise ValueError(
                         f"{type(self).__name__}.forward_sequence expects at least one timestep"
                     )
-                if inputs_seq[0].shape[0] > 0:
-                    if not self._pk_allocated:
-                        self._pk_alloc_hidden(self._pk_first_inputs(inputs_seq))
-                    elif is_validating(self):
-                        check_hidden_input_shape(self, self._pk_first_inputs(inputs_seq))
+                if not self._pk_allocated:
+                    self._pk_alloc_hidden(self._pk_first_inputs(inputs_seq))
+                elif is_validating(self):
+                    check_hidden_input_shape(self, self._pk_first_inputs(inputs_seq))
                 state0 = tuple(getattr(self, name) for name in self._pk_state_names)
                 result = compiled_pure(inputs_seq, state0)
                 ys = result[:n_outputs]
@@ -454,13 +455,6 @@ class SequenceScanMixin:
             state: Optional[tuple[Tensor, ...]] = None,
         ) -> Tensor | StepOutput:
             inputs_seq = self._pk_canonicalize_input_sequence(x_seq)
-
-            if self.init_hidden and inputs_seq[0].shape[0] > 0:
-                # Allocate hidden buffers *before* the compiled call. If the
-                # initial trace ran the alloc path, the buffer registration
-                # side effects break the scan into separate graphs (and under
-                # CUDA graphs they alias the compiler's memory pool).
-                self.allocate_like(self._pk_first_inputs(inputs_seq))
 
             out = compiled(inputs_seq, state)
 

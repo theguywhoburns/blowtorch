@@ -35,7 +35,7 @@ Every `Param` gets three constructor kwargs:
 | kwarg                 | effect                                   |
 | --------------------- | ---------------------------------------- |
 | `learnable_<name>=`   | force learnable `True`/`False`           |
-| `force_learn_<name>=` | alias kept for compatibility             |
+| `force_learn_<name>=` | spec-level override; an explicit `True` wins even against `learnable_<name>=False` |
 | `<name>_constraint=`  | replace the constraint (e.g. `identity`) |
 
 ```python

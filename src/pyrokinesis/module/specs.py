@@ -236,6 +236,9 @@ class OutputSpec:
     Declares an output tensor returned by `_step`.
 
     Outputs are not passed back into `_step` as recurrent state.
+    ``differentiable=False`` detaches the tensor only when it is stored
+    into a hidden-mode buffer; returned values keep the autograd graph
+    so surrogate gradients can flow through them.
     """
     default: float | Callable[[nn.Module], float] = 0.0
     differentiable: bool = True

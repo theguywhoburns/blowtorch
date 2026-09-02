@@ -67,6 +67,8 @@ class AdEx(SnnModule):
         mem: Tensor,
         adapt: Tensor,
     ) -> StepOutput:
+        # V_reset and b are consumed by declarative resets (set/add), not by the
+        # dynamics, so they are skipped here.
         tau_m, tau_w, V_rest, _, V_T, delta_T, a, _ = self.constrained()
 
         dv = (

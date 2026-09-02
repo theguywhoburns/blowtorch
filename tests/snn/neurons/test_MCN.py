@@ -29,16 +29,15 @@ def test_mcn_multi_input_metadata():
     assert m._pk_input_names == ("x_b", "x_a")
     assert m._pk_primary_input_index == 0
 
-    # States follow the primary (basal) input by default.
     state = m.initial_state_like((torch.randn(2, 3), torch.randn(2, 7)))
     assert state[0].shape == (2, 3)
-    assert state[1].shape == (2, 3)
+    assert state[1].shape == (2, 7)
     assert state[2].shape == (2, 3)
 
 
 def test_mcn_step_hand_computed():
     m = MCN()
-    state = m.initial_state((1,))
+    state = m.initial_state_like((torch.zeros(1), torch.zeros(1)))
 
     # tau_B = tau_A = 2: V = 0.5*V + 0.5*x.
     # m = 1 - 1/4 - 1/4 - 1/4 = 0.25, so u = 0.25*u + 0.25*V_b + 0.25*V_a.
@@ -56,7 +55,7 @@ def test_mcn_purity_each_state_reads_only_pre_step_values():
     m = MCN()
     xb = torch.tensor([1.5])
     xa = torch.tensor([1.0])
-    zero = m.initial_state((1,))
+    zero = m.initial_state_like((xb, xa))
 
     _, (V_b, V_a, u) = m.step_state((xb, xa), zero)
     assert torch.allclose(V_b, torch.tensor([0.75]))
@@ -95,9 +94,9 @@ def test_mcn_fig3f_periodic_firing():
 
 def test_mcn_soma_subtract_reset_after_spike():
     m = MCN(init_hidden=False)
-    state = m.initial_state((1,))
     xb = torch.tensor([1.5])
     xa = torch.tensor([1.0])
+    state = m.initial_state_like((xb, xa))
 
     for _ in range(8):
         spk, (V_b, V_a, u) = m.step_state((xb, xa), state)
@@ -144,7 +143,7 @@ def test_mcn_hidden_explicit_equivalence():
     torch.manual_seed(0)
     hidden = MCN(init_hidden=True)
     explicit = MCN(init_hidden=False)
-    state = explicit.initial_state((B, F))
+    state = explicit.initial_state_like((torch.randn(B, F), torch.randn(B, F)))
 
     for _ in range(5):
         xb = torch.randn(B, F)
@@ -157,7 +156,7 @@ def test_mcn_hidden_explicit_equivalence():
 
 def test_mcn_strong_input_stays_finite():
     m = MCN(init_hidden=False)
-    state = m.initial_state((B, F))
+    state = m.initial_state_like((torch.randn(B, F), torch.randn(B, F)))
     for _ in range(500):
         spk, state = m.step_state(
             (torch.full((B, F), 1e3), torch.full((B, F), 1e3)),

@@ -110,6 +110,23 @@ def collect_inputs(cls: type[PyroModule]) -> tuple[tuple[str, InputSpec], ...]:
             if isinstance(value, InputSpec):
                 inputs[name] = value
 
+        # Annotation-only and value-only declarations cannot be interleaved
+        # back into declaration order; reject the mix instead of reordering.
+        if scope_annotations or vars_:
+            # Only check the current Inputs class, not the accumulated MRO dict.
+            ann_only = [n for n in scope_annotations if n not in vars_]
+            val_only = [
+                n for n, v in vars_.items()
+                if n not in scope_annotations and isinstance(v, InputSpec)
+            ]
+            if ann_only and val_only:
+                raise TypeError(
+                    f"{cls.__name__}.Inputs mixes annotation-only inputs "
+                    f"({ann_only}) with InputSpec-valued inputs ({val_only}); "
+                    f"that would silently reorder _step arguments. Use one style "
+                    f"per Inputs class."
+                )
+
     if not inputs:
         return (("x", InputSpec(primary=True)),)
 
@@ -211,6 +228,17 @@ def collect_metadata(cls: type[PyroModule]) -> None:
         for _, spec in cls._pk_spec_entries
         if isinstance(spec, StateSpec)
     )
+
+    seen_state = False
+    for name, spec in cls._pk_spec_entries:
+        if isinstance(spec, StateSpec):
+            seen_state = True
+        elif seen_state:
+            raise TypeError(
+                f"{cls.__name__}.Specs declares output {name!r} after a "
+                f"state; _step returns (*outputs, *states) positionally, "
+                f"so all OutputSpec entries must precede StateSpec entries"
+            )
 
 
 def generate_signature(cls: type[PyroModule]) -> None:
