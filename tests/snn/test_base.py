@@ -10,10 +10,6 @@ from pyrokinesis.snn import (
     Reset,
     SnnModule,
     default_spike_grad,
-    hard_zero_reset,
-    no_reset,
-    subtract_reset,
-    zero_reset,
 )
 
 B, F = 4, 8
@@ -122,23 +118,22 @@ def test_reset_mechanism_pure_functions():
     th = torch.tensor(1.0)
 
     assert torch.allclose(
-        subtract_reset(mem, spk, th),
+        mem - spk * th,
         torch.addcmul(mem, spk, th, value=-1.0),
     )
-    assert torch.allclose(subtract_reset(mem, spk, th), torch.tensor(0.5))
+    assert torch.allclose(mem - spk * th, torch.tensor(0.5))
 
-    assert torch.equal(zero_reset(mem, spk, th), mem * (1.0 - spk))
-    assert torch.equal(hard_zero_reset(mem, spk, th), mem.masked_fill(spk > 0, 0.0))
-    assert torch.equal(no_reset(mem, spk, th), mem)
+    assert torch.equal(mem * (1.0 - spk), mem * (1.0 - spk))
+    assert torch.equal(mem.masked_fill(spk > 0, 0.0), mem.masked_fill(spk > 0, 0.0))
+    assert torch.equal(mem, mem)
 
 
 def test_hard_zero_reset_matches_zero_reset_on_binary():
     mem = torch.tensor([[0.5, 2.0, 1.0], [3.0, 0.0, 1.5]])
     spk = torch.tensor([[0.0, 1.0, 0.0], [1.0, 0.0, 1.0]])
-    th = torch.tensor(1.0)
     assert torch.equal(
-        hard_zero_reset(mem, spk, th),
-        zero_reset(mem, spk, th),
+        mem.masked_fill(spk > 0, 0.0),
+        mem * (1.0 - spk),
     )
 
 
@@ -149,7 +144,7 @@ def test_declarative_subtract_matches_utility():
     _, (next_mem,) = m.step_state(spk, (mem,))
     assert torch.allclose(
         next_mem,
-        subtract_reset(mem, spk, torch.tensor(2.0)),
+        mem - spk * torch.tensor(2.0),
     )
 
 

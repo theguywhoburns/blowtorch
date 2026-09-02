@@ -118,8 +118,7 @@ class PyroModule(
       - basic sequence scan
 
     PyroModule is a pure state-threading engine: it makes no assumptions
-    about the semantics of the tensors returned by ``_step`` (no notion of a
-    "spike" output or of resetting state). Subclasses may hook the raw step
+    about the semantics of the tensors returned by ``_step``. Subclasses may hook the raw step
     output through the ``_pk_post_step`` method, which is applied before the
     output is returned or stored; ``SnnModule`` overrides it to apply
     declarative per-state resets.

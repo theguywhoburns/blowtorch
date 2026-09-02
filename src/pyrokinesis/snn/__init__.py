@@ -1,4 +1,4 @@
-from .PyroModule import (
+from .module import (
     SnnModule,
     default_spike_grad,
     straight_through_surrogate,
@@ -6,10 +6,6 @@ from .PyroModule import (
 from .reset import (
     Reset,
     ResetSpec,
-    hard_zero_reset,
-    no_reset,
-    subtract_reset,
-    zero_reset,
 )
 from pyrokinesis.util.surrogate_gradients import (
     atan_surrogate,
@@ -43,11 +39,7 @@ __all__ = [
     "atan_surrogate",
     "default_spike_grad",
     "fast_sigmoid_surrogate",
-    "hard_zero_reset",
-    "no_reset",
     "sigmoid_surrogate",
     "straight_through_surrogate",
-    "subtract_reset",
     "triangular_surrogate",
-    "zero_reset",
 ]

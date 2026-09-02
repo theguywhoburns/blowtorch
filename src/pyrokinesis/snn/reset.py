@@ -3,50 +3,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable
 
-import torch
+import types
 
-from pyrokinesis import ParamSpec, StateSpec, Tensor
+from pyrokinesis import ParamSpec, StateSpec, StepOutput, identity
 
 if TYPE_CHECKING:
-    from .PyroModule import SnnModule
+    from .module import SnnModule
 
 __all__ = [
     "Reset",
     "ResetHandler",
+    "ResetMixin",
     "ResetSpec",
-    "hard_zero_reset",
-    "no_reset",
-    "subtract_reset",
-    "zero_reset",
 ]
-
-
-def subtract_reset(mem: Tensor, spk: Tensor, threshold: Tensor) -> Tensor:
-    """
-    Subtract threshold from fired neurons.
-    """
-    return torch.addcmul(mem, spk, threshold, value=-1.0)
-
-
-def zero_reset(mem: Tensor, spk: Tensor, threshold: Tensor) -> Tensor:
-    """
-    Reset fired neurons to zero multiplicatively.
-    """
-    return mem * (1.0 - spk)
-
-
-def hard_zero_reset(mem: Tensor, spk: Tensor, threshold: Tensor) -> Tensor:
-    """
-    Hard-reset fired neurons to zero using a mask.
-    """
-    return mem.masked_fill(spk > 0, 0.0)
-
-
-def no_reset(mem: Tensor, spk: Tensor, threshold: Tensor) -> Tensor:
-    """
-    No reset.
-    """
-    return mem
 
 
 @dataclass(frozen=True)
@@ -140,3 +109,90 @@ class ResetHandler:
 
     def __init__(self, module: "SnnModule", state_index: int, spec: StateSpec, reset_spec: ResetSpec) -> None:
         self.apply(module, state_index, spec, reset_spec)
+
+
+class ResetMixin:
+    """Declarative per-state reset mixin — SNN-specific, not generic PyroModule."""
+
+    _pk_reset_exprs: dict[int, ResetSpec]
+
+    def _pk_process_spec_extensions(self) -> None:
+        super()._pk_process_spec_extensions()  # type: ignore[attr-defined]
+        self._pk_install_reset_fn()  # type: ignore[attr-defined]
+
+    def _pk_post_step(self, out: StepOutput) -> StepOutput:
+        if isinstance(out, tuple) and len(out) > 0:
+            spk = out[0]
+            pre_state = out[1:]
+            next_state = self._pk_apply_resets(pre_state, spk)  # type: ignore[attr-defined]
+            return (spk, *next_state)
+        return out
+
+    def _pk_install_reset_fn(self) -> None:
+        reset_exprs = getattr(self, "_pk_reset_exprs", {})
+        if not reset_exprs:
+            self._pk_apply_resets = lambda pre_state, spk: pre_state  # type: ignore[attr-defined]
+            return
+        lines: list[str] = []
+        for i in range(len(self._pk_state_specs)):  # type: ignore[attr-defined]
+            lines.append(f"state_{i} = pre_state[{i}]")
+        for i, reset_spec in reset_exprs.items():
+            if reset_spec.kind == "none":
+                continue
+            if reset_spec.kind in ("subtract", "set", "add"):
+                param_name = self._pk_resolve_param_name(reset_spec.target)  # type: ignore[attr-defined]
+                param_value = self._pk_constraint_expr(param_name)  # type: ignore[attr-defined]
+                if reset_spec.kind == "subtract":
+                    lines.append(f"state_{i} = state_{i} - spk * {param_value}")
+                elif reset_spec.kind == "set":
+                    lines.append(f"state_{i} = (1 - spk) * state_{i} + spk * {param_value}")
+                else:
+                    lines.append(f"state_{i} = state_{i} + spk * {param_value}")
+            elif reset_spec.kind == "zero":
+                lines.append(f"state_{i} = state_{i} * (1 - spk)")
+            elif reset_spec.kind == "hard_zero":
+                lines.append(f"state_{i} = state_{i}.masked_fill(spk > 0, 0.0)")
+            elif reset_spec.kind == "custom":
+                fn = reset_spec.custom_fn
+                if isinstance(fn, str):
+                    fn_name = fn
+                elif callable(fn):
+                    fn_name = getattr(fn, "__name__", None)
+                    if fn_name is None or fn_name == "<lambda>":
+                        raise ValueError(f"Reset.custom requires a named method or a method-name string, got {fn!r}")
+                else:
+                    raise ValueError(f"Reset.custom requires a method-name string or a named callable, got {fn!r}")
+                target = getattr(self, fn_name, None)
+                if not callable(target):
+                    raise ValueError(f"Reset.custom target {fn_name!r} is not a method on {type(self).__name__}")
+                lines.append(f"state_{i} = self.{fn_name}(state_{i}, spk)")
+            else:
+                raise ValueError(f"Unknown reset kind {reset_spec.kind!r}")
+        lines.append("return (" + ", ".join(f"state_{i}" for i in range(len(self._pk_state_specs))) + ",)")  # type: ignore[attr-defined]
+        src = "def _pk_apply_resets(self, pre_state, spk):\n    " + "\n    ".join(lines)
+        ns: dict[str, object] = {}
+        exec(src, ns)
+        self._pk_apply_resets = types.MethodType(ns["_pk_apply_resets"], self)  # type: ignore[attr-defined]
+
+    def _pk_constraint_expr(self, param_name: str) -> str:
+        param_names = tuple(self._pk_param_specs.keys())  # type: ignore[attr-defined]
+        idx = param_names.index(param_name)
+        constraint = self._pk_constraints[idx]  # type: ignore[attr-defined]
+        if constraint is identity:
+            return f"self.{param_name}"
+        return f"self._pk_constraint_{idx}(self.{param_name})"
+
+    def _pk_resolve_param_name(self, target: str | ParamSpec | None) -> str:
+        if isinstance(target, str):
+            if target not in self._pk_param_specs:  # type: ignore[attr-defined]
+                raise ValueError(f"Unknown param name {target!r}")
+            return target
+        for name, spec in self._pk_param_specs.items():  # type: ignore[attr-defined]
+            if spec is target:
+                return name
+        raise ValueError(
+            "Reset target ParamSpec not found in Params: a ParamSpec target "
+            "must be the exact object declared in this module's Params "
+            f"(targets are matched by identity; prefer the param name as a "
+            f"string, e.g. Reset.subtract({sorted(self._pk_param_specs.keys())[0]!r}))"  # type: ignore[attr-defined]
+        )

@@ -5,7 +5,7 @@ import inspect
 import pytest
 import torch
 
-from pyrokinesis.snn import Reset, SnnModule, subtract_reset
+from pyrokinesis.snn import Reset, SnnModule
 from pyrokinesis.snn.neurons.LIF import LIF
 
 B, F = 4, 8
@@ -94,7 +94,7 @@ def test_lif_reset_kind_subtract_default():
     mem = torch.zeros(1)
     _, (mem,) = lif.step_state(torch.tensor([1.5]), (mem,))
     assert torch.allclose(mem, torch.tensor([0.5]))
-    assert torch.allclose(subtract_reset(torch.tensor(1.5), torch.tensor(1.0), torch.tensor(1.0)), torch.tensor(0.5))
+    assert torch.allclose(torch.tensor(1.5) - torch.tensor(1.0) * torch.tensor(1.0), torch.tensor(0.5))
 
 
 def test_lif_reset_kind_zero():

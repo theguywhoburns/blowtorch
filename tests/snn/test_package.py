@@ -14,10 +14,7 @@ def test_snn_public_exports_match_all():
         "SnnModule",
         "Reset",
         "ResetSpec",
-        "subtract_reset",
-        "zero_reset",
-        "hard_zero_reset",
-        "no_reset",
+
         "default_spike_grad",
         "straight_through_surrogate",
         "sigmoid_surrogate",
@@ -68,8 +65,4 @@ def test_reset_module_is_exportable():
 
     assert reset_module.Reset is pyrokinesis.snn.Reset
     assert reset_module.ResetSpec is pyrokinesis.snn.ResetSpec
-    assert reset_module.subtract_reset is pyrokinesis.snn.subtract_reset
-    assert reset_module.zero_reset is pyrokinesis.snn.zero_reset
-    assert reset_module.hard_zero_reset is pyrokinesis.snn.hard_zero_reset
-    assert reset_module.no_reset is pyrokinesis.snn.no_reset
     assert callable(reset_module.ResetHandler.apply)

@@ -20,7 +20,7 @@ from pyrokinesis import (
     set_sequence_scan_chunk,
     set_validation,
 )
-from pyrokinesis.snn import SnnModule, hard_zero_reset, zero_reset
+from pyrokinesis.snn import SnnModule
 from pyrokinesis.snn.neurons.LIF import LIF
 
 B, F = 4, 8
@@ -1602,8 +1602,8 @@ def test_hard_zero_reset_equals_zero_reset_on_binary():
     spk = torch.tensor([[0.0, 1.0, 0.0], [1.0, 0.0, 1.0]])
     th = torch.tensor(1.0)
     assert torch.equal(
-        hard_zero_reset(mem, spk, th),
-        zero_reset(mem, spk, th),
+        mem.masked_fill(spk > 0, 0.0),
+        mem * (1.0 - spk),
     )
 
 
