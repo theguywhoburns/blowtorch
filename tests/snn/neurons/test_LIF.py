@@ -5,8 +5,8 @@ import inspect
 import pytest
 import torch
 
-from crematorium.snn import Reset, SnnModule, subtract_reset
-from crematorium.snn.neurons.LIF import LIF
+from pyrokinesis.snn import Reset, SnnModule, subtract_reset
+from pyrokinesis.snn.neurons.LIF import LIF
 
 B, F = 4, 8
 T = 5
@@ -135,8 +135,8 @@ def test_lif_spike_grad_override():
 
 def test_lif_spike_grad_override_and_declarative_reset():
     lif = LIF(beta=0.5, threshold=1.0, spike_grad=lambda x: torch.ones_like(x))
-    assert lif._bt_reset_exprs[0].kind == "subtract"
-    assert lif._bt_reset_exprs[0].target == "threshold"
+    assert lif._pk_reset_exprs[0].kind == "subtract"
+    assert lif._pk_reset_exprs[0].target == "threshold"
 
     mem = torch.zeros(1)
     spk, (mem,) = lif.step_state(torch.tensor([0.1]), (mem,))
@@ -242,7 +242,7 @@ def test_lif_no_grad_forward_is_hard_threshold():
     lif = LIF(init_hidden=False, beta=0.5, threshold=1.0)
     x = torch.tensor([-2.0, -0.5, 0.0, 0.5, 3.0])
     with torch.no_grad():
-        spk, (mem,) = lif.step_state(x, (torch.zeros(5),))
+        spk, (_mem,) = lif.step_state(x, (torch.zeros(5),))
     expected = (x - 1.0 > 0).to(x.dtype)
     assert torch.equal(spk, expected)
     assert spk.requires_grad is False
@@ -333,7 +333,7 @@ def test_lif_strong_input_stays_finite():
     assert torch.isfinite(spk).all()
 
 def test_lif_matches_norse_reference():
-    norse = pytest.importorskip("norse")
+    pytest.importorskip("norse")
     from norse.torch.functional.lif import (
         LIFFeedForwardState,
         LIFParameters,

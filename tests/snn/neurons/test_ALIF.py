@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from crematorium.snn.neurons.ALIF import ALIF
+from pyrokinesis.snn.neurons.ALIF import ALIF
 
 B, F = 4, 8
 

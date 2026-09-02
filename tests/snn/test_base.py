@@ -5,8 +5,8 @@ import inspect
 import pytest
 import torch
 
-from crematorium import crematoriumModule
-from crematorium.snn import (
+from pyrokinesis import PyroModule
+from pyrokinesis.snn import (
     Reset,
     SnnModule,
     default_spike_grad,
@@ -158,8 +158,8 @@ def test_default_spike_grad_is_default_spike_grad():
     assert m.spike_grad is default_spike_grad
 
 
-def test_snn_module_is_crematorium_module():
-    assert issubclass(SnnModule, crematoriumModule)
+def test_snn_module_is_pyrokinesis_module():
+    assert issubclass(SnnModule, PyroModule)
 
 
 def test_signature_includes_spike_grad_only():
@@ -324,7 +324,7 @@ def test_reset_target_string_name():
 
 def test_reset_target_param_spec_object():
     m = _SubtractResetProbe()
-    assert m._bt_reset_exprs[0].target is _ProbeParams.p
+    assert m._pk_reset_exprs[0].target is _ProbeParams.p
 
 
 def test_reset_unknown_param_name_raises():

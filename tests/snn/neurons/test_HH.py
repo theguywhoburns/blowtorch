@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from crematorium.snn import HH, SnnModule
+from pyrokinesis.snn import HH, SnnModule
 
 B, F = 4, 8
 T = 50
@@ -9,9 +9,9 @@ T = 50
 
 def test_hh_declares_state_specs():
     m = HH()
-    assert len(m._bt_state_specs) == 4
-    assert not getattr(m, "_bt_reset_exprs", {})
-    assert [s.default for s in m._bt_state_specs] == [
+    assert len(m._pk_state_specs) == 4
+    assert not getattr(m, "_pk_reset_exprs", {})
+    assert [s.default for s in m._pk_state_specs] == [
         -65.0,
         0.0529,
         0.5961,
@@ -73,7 +73,7 @@ def test_hh_substeps_preserve_dynamics():
     out_s = single.forward_sequence(y_seq)
 
     assert torch.equal(out_c[0], out_s[0][S - 1 :: S])
-    for a, b in zip(out_c[1:], out_s[1:]):
+    for a, b in zip(out_c[1:], out_s[1:], strict=True):
         assert torch.equal(a, b)
 
 
@@ -103,7 +103,7 @@ def test_hh_compiled_sequence_matches_eager():
     out_c = compiled.forward_sequence(x_seq)
     out_e = eager.forward_sequence(x_seq)
     assert isinstance(out_c, tuple) and isinstance(out_e, tuple)
-    for a, b in zip(out_c, out_e):
+    for a, b in zip(out_c, out_e, strict=True):
         assert torch.allclose(a, b, atol=1e-5)
 
 
@@ -187,7 +187,7 @@ def test_hh_spike_grad_default_is_used():
 
 
 def test_hh_importable_from_snn():
-    from crematorium.snn import HH as snn_HH
+    from pyrokinesis.snn import HH as snn_HH
 
     assert snn_HH is HH
     assert HH.__mro__[1] is SnnModule

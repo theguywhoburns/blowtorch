@@ -1,6 +1,6 @@
-# crematorium
+# pyrokinesis
 
-[![CI](https://github.com/theguywhoburns/crematorium/actions/workflows/test.yml/badge.svg)](https://github.com/theguywhoburns/crematorium/actions/workflows/test.yml)
+[![CI](https://github.com/theguywhoburns/pyrokinesis/actions/workflows/test.yml/badge.svg)](https://github.com/theguywhoburns/pyrokinesis/actions/workflows/test.yml)
 
 A declarative spiking neural network library for PyTorch research. Neurons
 are described by plain nested classes (`Params`, `Specs`) and a single
@@ -32,14 +32,14 @@ Plain PyTorch only. No custom CUDA kernels; the speed comes from
   `add` / `custom`, applied per-state after `_step` in both modes.
 - **Surrogate gradients** - per-module `spike_grad=` callable; defaults to a
   straight-through estimator, with sigmoid / atan / triangular / fast-sigmoid
-  options (see `crematorium.util.surrogate_gradients`).
+  options (see `pyrokinesis.util.surrogate_gradients`).
 - **Sequence scans** - `forward_sequence` on `(time, batch, features)` with a
   chunked eager scan plus `fast_sequence_()` / `compile_sequence_scan()` to
   compile the whole scan through `torch.compile`.
 - **Spike trains** - `SpikeTrain` turns quantile fractions into Poisson
   population spike trains via Gaussian receptive fields, and also ships
   Poisson and latency encoders plus `.custom(...)`; dense or event-packed GPU
-  form (`crematorium.util.SpikeTrain`). See
+  form (`pyrokinesis.util.SpikeTrain`). See
   [examples/spike_train.py](examples/spike_train.py).
 - **Included neurons** - `LIF`, `AdEx`, `ALIF`, `HH`, `Izhikevich`, `SRM0`,
   `TwoCompartment`, `MCN` (three-compartment basal/apical/soma).
@@ -55,13 +55,13 @@ Plain PyTorch only. No custom CUDA kernels; the speed comes from
 
 ## Install
 
-`crematorium` uses `torch>=2.13.0`, selected via an extra matching your
+`pyrokinesis` uses `torch>=2.13.0`, selected via an extra matching your
 backend:
 
 ```bash
-pip install crematorium[cu130]   # NVIDIA / CUDA 13.0
-pip install crematorium[cpu]     # CPU only
-pip install crematorium[rocm]    # AMD / ROCm 7.2
+pip install pyrokinesis[cu130]   # NVIDIA / CUDA 13.0
+pip install pyrokinesis[cpu]     # CPU only
+pip install pyrokinesis[rocm]    # AMD / ROCm 7.2
 ```
 
 The extras are mutually exclusive: pick exactly one. The `rocm` extra also
@@ -72,7 +72,7 @@ compiled scans on AMD.
 
 ```python
 import torch
-from crematorium.snn import LIF
+from pyrokinesis.snn import LIF
 
 x = torch.randn(1000, 32, 64)  # (time, batch, features)
 
@@ -128,8 +128,8 @@ complete worked example.
 Subclass `SnnModule`, declare `Params` and `Specs`, and implement `_step`:
 
 ```python
-from crematorium.base import clamp_positive, clamp_unit_interval
-from crematorium.snn import Reset, SnnModule
+from pyrokinesis import clamp_positive, clamp_unit_interval
+from pyrokinesis.snn import Reset, SnnModule
 
 class MyLIF(SnnModule):
     class Params:
@@ -186,45 +186,46 @@ Key pieces:
 **NOTE: Benchmarks ran on** `NVIDIA GeForce RTX 3050 Laptop GPU 4G`,
 T=1000, B=32, F=1024.
 
-| library         | mode          | compiled | ms      | steps/s | peak MiB | vs crematorium seq eager |
+| library         | mode          | compiled | ms      | steps/s | peak MiB | vs pyrokinesis seq eager |
 | --------------- | ------------- | -------- | ------- | ------- | -------- | ------------------------ |
-| crematorium LIF | seq hidden    | eager    | 43.488  | 22,995  | 380.5    | 1.00x                    |
-| crematorium LIF | seq hidden    | compile  | 3.434   | 291,244 | 378.4    | 0.08x                    |
-| crematorium LIF | seq explicit  | eager    | 45.682  | 21,891  | 380.6    | 1.05x                    |
-| crematorium LIF | seq explicit  | compile  | 2.984   | 335,100 | 252.4    | 0.07x                    |
-| crematorium LIF | step hidden   | eager    | 42.499  | 23,530  | 126.8    | 0.98x                    |
-| crematorium LIF | step hidden   | compile  | 35.576  | 28,108  | 126.5    | 0.82x                    |
-| crematorium LIF | step explicit | eager    | 42.040  | 23,787  | 127.0    | 0.97x                    |
-| crematorium LIF | step explicit | compile  | 37.132  | 26,931  | 126.8    | 0.85x                    |
-| snntorch        | seq           | eager    | 117.777 | 8,491   | 377.5    | 2.71x                    |
-| snntorch        | seq           | compile  | 48.865  | 20,464  | 378.0    | 1.12x                    |
-| norse           | seq           | eager    | 112.928 | 8,855   | 378.3    | 2.60x                    |
-| norse           | seq           | compile  | 4.519   | 221,269 | 376.6    | 0.10x                    |
-| norse           | step          | eager    | 114.954 | 8,699   | 128.0    | 2.64x                    |
-| norse           | step          | compile  | 41.758  | 23,947  | 127.3    | 0.96x                    |
+| pyrokinesis LIF | seq hidden    | eager    | 39.000  | 25,641  | 254.6    | 1.00x                    |
+| pyrokinesis LIF | seq hidden    | compile  | 3.393   | 294,696 | 252.5    | 0.09x                    |
+| pyrokinesis LIF | seq explicit  | eager    | 46.600  | 21,459  | 254.8    | 1.19x                    |
+| pyrokinesis LIF | seq explicit  | compile  | 3.382   | 295,673 | 252.4    | 0.09x                    |
+| pyrokinesis LIF | step hidden   | eager    | 42.658  | 23,443  | 126.8    | 1.09x                    |
+| pyrokinesis LIF | step hidden   | compile  | 35.960  | 27,809  | 126.5    | 0.92x                    |
+| pyrokinesis LIF | step explicit | eager    | 39.207  | 25,505  | 127.0    | 1.01x                    |
+| pyrokinesis LIF | step explicit | compile  | 34.105  | 29,321  | 126.8    | 0.87x                    |
+| snntorch        | seq           | eager    | 100.060 | 9,994   | 377.5    | 2.57x                    |
+| snntorch        | seq           | compile  | 37.414  | 26,728  | 378.0    | 0.96x                    |
+| norse           | seq           | eager    | 94.028  | 10,635  | 378.3    | 2.41x                    |
+| norse           | seq           | compile  | 4.298   | 232,693 | 376.6    | 0.11x                    |
+| norse           | step          | eager    | 97.280  | 10,280  | 128.0    | 2.49x                    |
+| norse           | step          | compile  | 35.817  | 27,920  | 127.3    | 0.92x                    |
 
-Even uncompiled, crematorium (43.5 ms) beats eager snnTorch (117.8 ms, ~2.7x)
-and eager Norse (112.9 ms, ~2.6x). The compiled scan (3.0-3.4 ms best-of)
-is ~13x faster than crematorium's own eager scan, ~14-16x faster than compiled
-snnTorch (48.9 ms), and ~1.3-1.5x faster than compiled Norse (4.5 ms). No
-custom kernels; the speed is pure Python math through `torch.compile`.
+Even uncompiled, pyrokinesis (39.0 ms) beats eager snnTorch (100.1 ms, ~2.6x)
+and eager Norse (94.0 ms, ~2.4x). The compiled scan (3.39 ms) is ~11.5x faster
+than pyrokinesis's own eager scan, ~11x faster than compiled snnTorch
+(37.4 ms), and ~1.27x faster than compiled Norse (4.30 ms). No custom
+kernels; the speed is pure Python math through `torch.compile`.
 
 Compiled timings vary run-to-run on this laptop GPU (typical single runs read
-~4.1-4.5 ms; best-of-high-rep runs drop to ~3.0-3.4 ms); the compiled rows
-above are the best observed values.
+~3.3-3.8 ms; best-of runs drop to ~3.38 ms); the compiled rows above are the
+latest steady-state values.
 
-Compiling the per-step loop barely helps (35.6 vs 42.5 ms): per-step Python
+Compiling the per-step loop barely helps (35.9 vs 42.6 ms): per-step Python
 dispatch dominates. Compiling the whole sequence scan wins because it fuses
 the unrolled graph into one call.
 
-Memory is comparable across frameworks in the same mode. Sequence mode holds
-the full `(T, B, F)` spike stack (~380 MiB for crematorium eager and for
-snnTorch/Norse); the compiled explicit scan drops to ~252 MiB. Step mode holds
-only the state (~127 MiB across all three).
+Memory is comparable in step mode (~127 MiB across all three). Sequence mode
+holds the full `(T, B, F)` spike stack: snnTorch/Norse ~378 MiB;
+pyrokinesis ~254 MiB for both hidden and explicit (eager and compiled) —
+~1.5x less — because hidden buffers no longer hold a view into the `(T,B,F)`
+output (see `src/pyrokinesis/module/scan.py:320`).
 
-> **Ratio convention**: `bench_all_vs.py` prints `framework_time / crematorium_seq_eager_time` as the trailing `(N.Nx)` factor. A value **below
-> 1.0 means the framework is faster** than crematorium LIF seq eager. The base
-> is the first measured row, `crematorium LIF seq hidden eager`.
+> **Ratio convention**: `bench_all_vs.py` prints `framework_time / pyrokinesis_seq_eager_time` as the trailing `(N.Nx)` factor. A value **below
+> 1.0 means the framework is faster** than pyrokinesis LIF seq eager. The base
+> is the first measured row, `pyrokinesis LIF seq hidden eager`.
 
 Run the benchmark yourself:
 
@@ -241,19 +242,19 @@ Results are printed to the console and exported to a CSV under
 T=1000, B=32, F=512, network `Linear(512,512) -> LIF x4 -> Linear(512,10) ->
 LIF` (Linear-light, LIF-heavy).
 
-| library                | mode      | compiled | ms      | steps/s | peak MiB | vs crematorium seq eager |
+| library                | mode      | compiled | ms      | steps/s | peak MiB | vs pyrokinesis seq eager |
 | ---------------------- | --------- | -------- | ------- | ------- | -------- | ------------------------ |
-| crematorium Sequential | seq       | eager    | 231.671 | 4,316   | 74.4     | 1.00x                    |
-| crematorium Sequential | seq       | compile  | 23.388  | 42,757  | 79.5     | 0.10x                    |
-| crematorium Sequential | step      | eager    | 253.868 | 3,939   | 73.7     | 1.10x                    |
-| snntorch               | step loop | eager    | 639.938 | 1,563   | 76.1     | 2.76x                    |
-| snntorch               | step loop | compile  | 114.533 | 8,731   | 77.2     | 0.49x                    |
-| norse                  | seq       | eager    | 558.575 | 1,790   | 263.2    | 2.41x                    |
-| norse                  | seq       | compile  | 28.253  | 35,394  | 260.1    | 0.12x                    |
+| pyrokinesis Sequential | seq       | eager    | 213.395 | 4,686   | 74.4     | 1.00x                    |
+| pyrokinesis Sequential | seq       | compile  | 22.611  | 44,225  | 79.5     | 0.11x                    |
+| pyrokinesis Sequential | step      | eager    | 221.243 | 4,520   | 73.7     | 1.04x                    |
+| snntorch               | step loop | eager    | 565.490 | 1,768   | 76.1     | 2.65x                    |
+| snntorch               | step loop | compile  | 101.953 | 9,808   | 75.6     | 0.48x                    |
+| norse                  | seq       | eager    | 513.739 | 1,947   | 260.7    | 2.41x                    |
+| norse                  | seq       | compile  | 25.647  | 38,991  | 260.1    | 0.12x                    |
 
-The whole network compiles as one fused scan (23.4 ms): ~10x faster than
-crematorium's own eager sequence, ~1.2x faster than compiled Norse (28.3 ms),
-~2.4x faster than eager Norse, and ~2.8x faster than eager snnTorch. The
+The whole network compiles as one fused scan (22.6 ms): ~10x faster than
+pyrokinesis's own eager sequence, ~1.13x faster than compiled Norse (25.6 ms),
+~2.4x faster than eager Norse, and ~2.65x faster than eager snnTorch. The
 compiled stack also uses ~3.3x less GPU memory than Norse (79.5 vs 260.1 MiB).
 
 snnTorch has no sequence module, so it runs the canonical per-step loop with

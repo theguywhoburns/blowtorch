@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import math
+from itertools import pairwise
 
 import pytest
 import torch
 
-from crematorium.snn.neurons.MCN import MCN
-from crematorium.util import atan_surrogate, default_spike_grad
+from pyrokinesis.snn.neurons.MCN import MCN
+from pyrokinesis.util import atan_surrogate, default_spike_grad
 
 B, F = 4, 8
 
@@ -25,8 +26,8 @@ def test_mcn_fig3f_parameter_defaults():
 
 def test_mcn_multi_input_metadata():
     m = MCN()
-    assert m._bt_input_names == ("x_b", "x_a")
-    assert m._bt_primary_input_index == 0
+    assert m._pk_input_names == ("x_b", "x_a")
+    assert m._pk_primary_input_index == 0
 
     # States follow the primary (basal) input by default.
     state = m.initial_state_like((torch.randn(2, 3), torch.randn(2, 7)))
@@ -88,7 +89,7 @@ def test_mcn_fig3f_periodic_firing():
 
     times = (spk > 0).nonzero(as_tuple=True)[0].tolist()
     assert len(times) >= 3
-    diffs = [b - a for a, b in zip(times, times[1:])]
+    diffs = [b - a for a, b in pairwise(times)]
     assert len(set(diffs)) == 1
 
 

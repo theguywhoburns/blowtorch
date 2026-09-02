@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from crematorium.snn.neurons.Izhikevich import Izhikevich
+from pyrokinesis.snn.neurons.Izhikevich import Izhikevich
 
 B, F = 4, 8
 

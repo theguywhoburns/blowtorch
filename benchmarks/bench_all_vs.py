@@ -1,11 +1,11 @@
-"""Benchmark crematorium LIF vs snnTorch and Norse - sequence and per-step modes.
+"""Benchmark pyrokinesis LIF vs snnTorch and Norse - sequence and per-step modes.
 
 Run from the repo root:
 
     uv run --group bench python benchmarks/bench_all_vs.py [--steps 1000]
 
 Rows:
-    crematorium LIF   sequence (forward_sequence) and per-step (forward),
+    pyrokinesis LIF   sequence (forward_sequence) and per-step (forward),
                     each in hidden/explicit x eager/compiled.
                     Compiled sequences go through fast_sequence_()
                     (compile-the-scan, mode="default").
@@ -30,7 +30,7 @@ from pathlib import Path
 
 import torch
 
-from crematorium.snn import LIF as BtLIF
+from pyrokinesis.snn import LIF as PkLIF
 
 BETA = 0.9
 
@@ -89,12 +89,12 @@ def timeit(fn, device: torch.device, warmup: int, reps: int) -> tuple[float, flo
 
 
 
-# crematorium LIF
+# pyrokinesis LIF
 
 
 
-def bt_sequence(x: torch.Tensor, device: torch.device, hidden: bool, compiled: bool):
-    m = BtLIF(init_hidden=hidden, validate=False).to(device)
+def pk_sequence(x: torch.Tensor, device: torch.device, hidden: bool, compiled: bool):
+    m = PkLIF(init_hidden=hidden, validate=False).to(device)
     if compiled:
         m.fast_sequence_()
     state = None if hidden else m.initial_state_for_sequence(x)
@@ -106,8 +106,8 @@ def bt_sequence(x: torch.Tensor, device: torch.device, hidden: bool, compiled: b
     return run
 
 
-def bt_step(x: torch.Tensor, device: torch.device, hidden: bool, compiled: bool):
-    m = BtLIF(init_hidden=hidden, validate=False).to(device)
+def pk_step(x: torch.Tensor, device: torch.device, hidden: bool, compiled: bool):
+    m = PkLIF(init_hidden=hidden, validate=False).to(device)
     steps, batch, features = x.shape
 
     if compiled:
@@ -195,7 +195,7 @@ def norse_step(x: torch.Tensor, device: torch.device, compiled: bool):
 def _norse_params():
     import norse.torch as nt
 
-    # Euler mapping to crematorium LIF(beta=0.9): membrane decays 0.9/step,
+    # Euler mapping to pyrokinesis LIF(beta=0.9): membrane decays 0.9/step,
     # input current fully consumed each step (single compartment).
     return nt.LIFParameters(
         tau_syn_inv=torch.as_tensor(1000.0),
@@ -215,7 +215,7 @@ def measure(make, device: torch.device, warmup: int, reps: int):
         return timeit(make(), device, warmup, reps)
     except ImportError:
         return None
-    except Exception as exc:  # noqa: BLE001 - surface failures loudly
+    except Exception as exc:
         print(f"      ERROR: {exc}", flush=True)
         return None
 
@@ -246,15 +246,15 @@ def main() -> None:
     print(f"exporting to {path}")
     print("(compile happens lazily during warmup; only steady-state run time is reported)")
 
-    crematorium_rows = [
-        ("crematorium LIF", "seq hidden", False, lambda: bt_sequence(x, device, True, False)),
-        ("crematorium LIF", "seq hidden", True, lambda: bt_sequence(x, device, True, True)),
-        ("crematorium LIF", "seq explicit", False, lambda: bt_sequence(x, device, False, False)),
-        ("crematorium LIF", "seq explicit", True, lambda: bt_sequence(x, device, False, True)),
-        ("crematorium LIF", "step hidden", False, lambda: bt_step(x, device, True, False)),
-        ("crematorium LIF", "step hidden", True, lambda: bt_step(x, device, True, True)),
-        ("crematorium LIF", "step explicit", False, lambda: bt_step(x, device, False, False)),
-        ("crematorium LIF", "step explicit", True, lambda: bt_step(x, device, False, True)),
+    pyrokinesis_rows = [
+        ("pyrokinesis LIF", "seq hidden", False, lambda: pk_sequence(x, device, True, False)),
+        ("pyrokinesis LIF", "seq hidden", True, lambda: pk_sequence(x, device, True, True)),
+        ("pyrokinesis LIF", "seq explicit", False, lambda: pk_sequence(x, device, False, False)),
+        ("pyrokinesis LIF", "seq explicit", True, lambda: pk_sequence(x, device, False, True)),
+        ("pyrokinesis LIF", "step hidden", False, lambda: pk_step(x, device, True, False)),
+        ("pyrokinesis LIF", "step hidden", True, lambda: pk_step(x, device, True, True)),
+        ("pyrokinesis LIF", "step explicit", False, lambda: pk_step(x, device, False, False)),
+        ("pyrokinesis LIF", "step explicit", True, lambda: pk_step(x, device, False, True)),
     ]
 
     other_rows = [
@@ -271,8 +271,8 @@ def main() -> None:
         writer.writerow(["name", "variant", "compiled", "ms_per_step", "steps_per_sec"])
 
         base = None
-        print("\n[ crematorium LIF ]")
-        for name, variant, compiled, make in crematorium_rows:
+        print("\n[ pyrokinesis LIF ]")
+        for name, variant, compiled, make in pyrokinesis_rows:
             label = f"{name} {variant}" + (" compile" if compiled else " eager")
             res = measure(make, device, args.warmup, args.reps)
             if res is None:

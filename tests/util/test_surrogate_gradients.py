@@ -4,7 +4,7 @@ import math
 
 import torch
 
-from crematorium.util import (
+from pyrokinesis.util import (
     atan_surrogate,
     default_spike_grad,
     fast_sigmoid_surrogate,
@@ -98,8 +98,8 @@ def test_surrogate_beta_widens_gradient_window():
 
 
 def test_surrogates_work_as_spike_grad():
-    from crematorium.snn import LIF
+    from pyrokinesis.snn import LIF
 
     m = LIF(beta=0.5, threshold=1.0, spike_grad=sigmoid_surrogate(beta=10.0))
-    spk, (mem,) = m.step_state(torch.tensor([2.0]), (torch.zeros(1),))
+    spk, (_mem,) = m.step_state(torch.tensor([2.0]), (torch.zeros(1),))
     assert torch.allclose(spk, torch.tensor([1.0]))

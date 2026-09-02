@@ -3,16 +3,16 @@ import pytest
 
 import torch.nn as nn
 
-from crematorium.base import crematoriumModule
-from crematorium.nn import Sequential
-from crematorium.snn import LIF
+from pyrokinesis import PyroModule
+from pyrokinesis.nn import Sequential
+from pyrokinesis.snn import LIF
 
 
 def test_sequential_rejects_bad_construction():
     with pytest.raises(ValueError, match="at least one layer"):
         Sequential()
 
-    with pytest.raises(TypeError, match="must be nn.Module"):
+    with pytest.raises(TypeError, match=r"must be nn.Module"):
         Sequential(LIF(), "not-a-module")
 
     with pytest.raises(ValueError, match="init_hidden=True"):
@@ -49,11 +49,11 @@ def test_sequential_explicit_matches_manual_chain():
     assert torch.allclose(final[1], m2, atol=1e-6)
 
 
-class _TwoOutput(crematoriumModule):
+class _TwoOutput(PyroModule):
     class Specs:
-        a = crematoriumModule.OutputSpec()
-        b = crematoriumModule.OutputSpec()
-        s = crematoriumModule.StateSpec()
+        a = PyroModule.OutputSpec()
+        b = PyroModule.OutputSpec()
+        s = PyroModule.StateSpec()
 
     def _step(self, x: torch.Tensor, s: torch.Tensor):
         return x, x, s
@@ -75,9 +75,9 @@ def test_sequential_hidden_and_sequence():
     assert out.shape == (B, F)
     assert torch.equal(out, out.bool().to(out.dtype))
 
-    assert len(net._bt_state_names) == 2
-    assert net._buffers[net._bt_state_names[0]].shape == (B, F)
-    assert net._buffers[net._bt_state_names[1]].shape == (B, F)
+    assert len(net._pk_state_names) == 2
+    assert net._buffers[net._pk_state_names[0]].shape == (B, F)
+    assert net._buffers[net._pk_state_names[1]].shape == (B, F)
 
     x_seq = torch.randn(T, B, F)
     seq = net.forward_sequence(x_seq)
@@ -95,13 +95,13 @@ def test_sequential_mixed_stateless():
     assert state[0].shape == (B, 8)
 
     x_seq = torch.randn(T, B, 4)
-    seq, *final = net.forward_sequence(x_seq, state)
+    seq, *_final = net.forward_sequence(x_seq, state)
     assert seq.shape == (T, B, 8)
 
     net2 = Sequential(nn.Linear(4, 8), LIF(), init_hidden=True)
     out = net2.forward(torch.randn(B, 4))
     assert out.shape == (B, 8)
-    assert net2._buffers[net2._bt_state_names[0]].shape == (B, 8)
+    assert net2._buffers[net2._pk_state_names[0]].shape == (B, 8)
 
 
 def test_sequential_state_factories_match_hidden_alloc():
@@ -110,9 +110,9 @@ def test_sequential_state_factories_match_hidden_alloc():
 
     state = net.initial_state((3, 4))
 
-    stored = tuple(net._buffers[n] for n in net._bt_state_names)
+    stored = tuple(net._buffers[n] for n in net._pk_state_names)
 
-    for t, s in zip(state, stored):
+    for t, s in zip(state, stored, strict=True):
         assert tuple(t.shape) == tuple(s.shape)
 
 
@@ -139,7 +139,7 @@ def test_sequential_compiled_matches_eager():
     c_out, *cf = net.forward_sequence(x_seq, net.initial_state((B, 4)))
 
     assert torch.allclose(c_out, e_out, atol=1e-6)
-    for a, b in zip(ef, cf):
+    for a, b in zip(ef, cf, strict=True):
         assert torch.allclose(a, b, atol=1e-6)
 
 
@@ -229,8 +229,8 @@ def test_sequential_extra_state_roundtrip():
     h2 = Sequential(LIF(), init_hidden=True)
     h2.set_extra_state(extra)
 
-    assert h2._bt_allocated
+    assert h2._pk_allocated
     assert torch.allclose(
-        h2._buffers[h2._bt_state_names[0]],
-        h._buffers[h._bt_state_names[0]],
+        h2._buffers[h2._pk_state_names[0]],
+        h._buffers[h._pk_state_names[0]],
     )

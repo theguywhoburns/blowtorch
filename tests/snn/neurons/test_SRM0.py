@@ -5,7 +5,7 @@ import math
 import pytest
 import torch
 
-from crematorium.snn.neurons.SRM0 import SRM0
+from pyrokinesis.snn.neurons.SRM0 import SRM0
 
 B, F = 4, 8
 

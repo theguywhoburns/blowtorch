@@ -1,5 +1,5 @@
 [project]
-name = "crematorium"
+name = "pyrokinesis"
 version = "0.1.0"
 description = "Declarative spiking neural networks for PyTorch research"
 readme = "README.md"
@@ -28,9 +28,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/theguywhoburns/crematorium"
-Repository = "https://github.com/theguywhoburns/crematorium"
-Issues = "https://github.com/theguywhoburns/crematorium/issues"
+Homepage = "https://github.com/theguywhoburns/pyrokinesis"
+Repository = "https://github.com/theguywhoburns/pyrokinesis"
+Issues = "https://github.com/theguywhoburns/pyrokinesis/issues"
 
 [project.optional-dependencies]
 cu130 = ["torch>=2.13.0"]
@@ -111,7 +111,7 @@ filterwarnings = [
 # declarative `_step` signature (arbitrary per-neuron state params) instead of
 # disabling this rule package-wide.
 executionEnvironments = [
-    { root = "src/crematorium", reportIncompatibleMethodOverride = "none" },
+    { root = "src/pyrokinesis", reportIncompatibleMethodOverride = "none" },
 ]
 # Tests and benchmarks use Param() which is Any-typed by design; including
 # them produces 300+ noise diagnostics. Pyright is scoped to the library

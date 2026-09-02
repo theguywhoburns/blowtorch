@@ -6,8 +6,8 @@ from dataclasses import FrozenInstanceError
 import pytest
 import torch
 
-from crematorium import (
-    crematoriumModule,
+from pyrokinesis import (
+    PyroModule,
     OutputSpec,
     Param,
     ParamSpec,
@@ -20,8 +20,8 @@ from crematorium import (
     set_sequence_scan_chunk,
     set_validation,
 )
-from crematorium.snn import SnnModule, hard_zero_reset, zero_reset
-from crematorium.snn.neurons.LIF import LIF
+from pyrokinesis.snn import SnnModule, hard_zero_reset, zero_reset
+from pyrokinesis.snn.neurons.LIF import LIF
 
 B, F = 4, 8
 X = torch.randn(B, F)
@@ -34,18 +34,18 @@ X_SEQ = torch.randn(T, B, F)
 # ----------------------------------------------------------------------
 
 
-class _Leaky(crematoriumModule):
+class _Leaky(PyroModule):
     """Single output (mem), single state (mem). Pure leaky integrator."""
 
     class Params:
-        beta: float = crematoriumModule.Param(
+        beta: float = PyroModule.Param(
             0.5,
             constraint=clamp_unit_interval,
         )
 
     class Specs:
-        out = crematoriumModule.OutputSpec(differentiable=False)
-        mem = crematoriumModule.StateSpec()
+        out = PyroModule.OutputSpec(differentiable=False)
+        mem = PyroModule.StateSpec()
 
     def _step(self, x, mem):
         beta, = self.constrained()
@@ -53,126 +53,126 @@ class _Leaky(crematoriumModule):
         return mem, mem          # (out, next_mem)
 
 
-class _TwoOut(crematoriumModule):
+class _TwoOut(PyroModule):
     """Two outputs + one state: multi-output path."""
 
     class Params:
-        beta: float = crematoriumModule.Param(0.5)
+        beta: float = PyroModule.Param(0.5)
 
     class Specs:
-        o1 = crematoriumModule.OutputSpec()
-        o2 = crematoriumModule.OutputSpec(differentiable=False)
-        mem = crematoriumModule.StateSpec()
+        o1 = PyroModule.OutputSpec()
+        o2 = PyroModule.OutputSpec(differentiable=False)
+        mem = PyroModule.StateSpec()
 
     def _step(self, x, mem):
         mem = self.beta * mem + x
         return mem, mem * 2.0, mem
 
 
-class _WrongCount(crematoriumModule):
+class _WrongCount(PyroModule):
     """_step returns 2 tensors but Specs declares 3 entries."""
 
     class Specs:
-        o = crematoriumModule.OutputSpec()
-        s1 = crematoriumModule.StateSpec()
-        s2 = crematoriumModule.StateSpec()
+        o = PyroModule.OutputSpec()
+        s1 = PyroModule.StateSpec()
+        s2 = PyroModule.StateSpec()
 
     def _step(self, x, s1, s2):
         return x, x              # wrong: only 2
 
 
-class _NoTuple(crematoriumModule):
+class _NoTuple(PyroModule):
     """_step returns a bare Tensor, not a tuple."""
 
     class Specs:
-        o = crematoriumModule.OutputSpec()
-        s = crematoriumModule.StateSpec()
+        o = PyroModule.OutputSpec()
+        s = PyroModule.StateSpec()
 
     def _step(self, x, s):
         return x                 # wrong: not a tuple
 
 
-class _FixedShapeHidden(crematoriumModule):
+class _FixedShapeHidden(PyroModule):
     """StateSpec with an explicit tuple shape (hidden allocation honors it)."""
 
     class Specs:
-        o = crematoriumModule.OutputSpec(differentiable=False)
-        mem = crematoriumModule.StateSpec(shape=(B, 2 * F))
+        o = PyroModule.OutputSpec(differentiable=False)
+        mem = PyroModule.StateSpec(shape=(B, 2 * F))
 
     def _step(self, x, mem):
         return torch.zeros_like(x), mem
 
 
-class _NoneShape(crematoriumModule):
+class _NoneShape(PyroModule):
     """StateSpec with shape=None (treated as "input", follows the input shape)."""
 
     class Specs:
-        o = crematoriumModule.OutputSpec(differentiable=False)
-        mem = crematoriumModule.StateSpec(shape=None)
+        o = PyroModule.OutputSpec(differentiable=False)
+        mem = PyroModule.StateSpec(shape=None)
 
     def _step(self, x, mem):
         return torch.zeros_like(x), mem
 
 
-class _CallableDefault(crematoriumModule):
+class _CallableDefault(PyroModule):
     """Spec default that is a callable on the module."""
 
     class Specs:
-        o = crematoriumModule.OutputSpec(differentiable=False)
-        mem = crematoriumModule.StateSpec(default=lambda m: 0.25)
+        o = PyroModule.OutputSpec(differentiable=False)
+        mem = PyroModule.StateSpec(default=lambda m: 0.25)
 
     def _step(self, x, mem):
         return torch.zeros_like(x), mem
 
 
-class _NoParams(crematoriumModule):
+class _NoParams(PyroModule):
     """Empty Params + one output/state."""
 
     class Specs:
-        o = crematoriumModule.OutputSpec()
-        s = crematoriumModule.StateSpec()
+        o = PyroModule.OutputSpec()
+        s = PyroModule.StateSpec()
 
     def _step(self, x, s):
         return x, x
 
 
-class _ForceLearn(crematoriumModule):
+class _ForceLearn(PyroModule):
     """Spec-level force_learn=True."""
 
     class Params:
-        beta: float = crematoriumModule.Param(0.5, force_learn=True)
+        beta: float = PyroModule.Param(0.5, force_learn=True)
 
     class Specs:
-        o = crematoriumModule.OutputSpec()
-        s = crematoriumModule.StateSpec()
+        o = PyroModule.OutputSpec()
+        s = PyroModule.StateSpec()
 
     def _step(self, x, s):
         return x, x
 
 
-class _NoneDefault(crematoriumModule):
+class _NoneDefault(PyroModule):
     """Param whose default is None: construction must raise."""
 
     class Params:
-        a: float = crematoriumModule.Param(None)
+        a: float = PyroModule.Param(None)
 
     class Specs:
-        o = crematoriumModule.OutputSpec()
-        s = crematoriumModule.StateSpec()
+        o = PyroModule.OutputSpec()
+        s = PyroModule.StateSpec()
 
     def _step(self, x, s):
         return x, x
 
 
-class _PlainRNN(crematoriumModule):
+class _PlainRNN(PyroModule):
     """Generic non-SNN RNN cell: pure state threading, no spike semantics."""
 
     class Params:
-        w: float = crematoriumModule.Param(0.5)
+        w: float = PyroModule.Param(0.5)
 
     class Specs:
-        out = crematoriumModule.OutputSpec()
-        h = crematoriumModule.StateSpec()
+        out = PyroModule.OutputSpec()
+        h = PyroModule.StateSpec()
 
     def _step(self, x, h):
         h = torch.tanh(self.w * h + x)
@@ -217,13 +217,13 @@ def test_constraints_grad_compatible():
 def test_safe_exp_matches_exp_where_finite():
     for dtype in (torch.float32, torch.float64):
         x = torch.linspace(-100.0, 80.0, 200, dtype=dtype)
-        assert torch.equal(crematoriumModule.safe_exp(x), x.exp())
+        assert torch.equal(PyroModule.safe_exp(x), x.exp())
 
 
 def test_safe_exp_stays_finite_at_extremes():
     for dtype in (torch.float32, torch.float64):
         x = torch.tensor([-1e6, 0.0, 1e6, 1e30], dtype=dtype)
-        out = crematoriumModule.safe_exp(x)
+        out = PyroModule.safe_exp(x)
         assert torch.isfinite(out).all()
         assert torch.equal(out[1], torch.tensor(1.0, dtype=dtype))
         max_arg = torch.log(torch.tensor(torch.finfo(dtype).max, dtype=dtype)) - 1
@@ -232,7 +232,7 @@ def test_safe_exp_stays_finite_at_extremes():
 
 def test_safe_exp_grad_stays_finite():
     x = torch.tensor([-1e6, 1e6], requires_grad=True)
-    crematoriumModule.safe_exp(x).sum().backward()
+    PyroModule.safe_exp(x).sum().backward()
     assert x.grad is not None
     assert torch.isfinite(x.grad).all()
 
@@ -269,56 +269,56 @@ def test_output_state_spec_defaults():
 
 def test_module_metadata_collected():
     m = _Leaky()
-    assert set(m._bt_param_specs) == {"beta"}
-    assert m._bt_output_names == ("out",)
-    assert m._bt_state_names == ("mem",)
-    assert len(m._bt_output_specs) == 1
-    assert len(m._bt_state_specs) == 1
-    names = [name for name, _ in m._bt_spec_entries]
+    assert set(m._pk_param_specs) == {"beta"}
+    assert m._pk_output_names == ("out",)
+    assert m._pk_state_names == ("mem",)
+    assert len(m._pk_output_specs) == 1
+    assert len(m._pk_state_specs) == 1
+    names = [name for name, _ in m._pk_spec_entries]
     assert names == ["out", "mem"]
 
 
 def test_mro_param_merge():
-    class _Base(crematoriumModule):
+    class _Base(PyroModule):
         class Params:
-            beta: float = crematoriumModule.Param(0.5)
+            beta: float = PyroModule.Param(0.5)
 
         class Specs:
-            o = crematoriumModule.OutputSpec()
-            s = crematoriumModule.StateSpec()
+            o = PyroModule.OutputSpec()
+            s = PyroModule.StateSpec()
 
         def _step(self, x, s):
             return x, x
 
     class _Child(_Base):
         class Params:
-            beta: float = crematoriumModule.Param(0.9)
+            beta: float = PyroModule.Param(0.9)
 
     c = _Child()
-    assert "beta" in c._bt_param_specs
+    assert "beta" in c._pk_param_specs
     assert c.beta.item() == pytest.approx(0.9)
 
 
 def test_mro_spec_merge():
-    class _Base(crematoriumModule):
+    class _Base(PyroModule):
         class Specs:
-            o = crematoriumModule.OutputSpec()
-            s = crematoriumModule.StateSpec()
+            o = PyroModule.OutputSpec()
+            s = PyroModule.StateSpec()
 
         def _step(self, x, s):
             return x, x
 
     class _Child(_Base):
         class Specs:
-            s2 = crematoriumModule.StateSpec()
+            s2 = PyroModule.StateSpec()
 
         def _step(self, x, s, s2):
             return x, s, s2
 
     c = _Child()
-    assert c._bt_output_names == ("o",)
-    assert c._bt_state_names == ("s", "s2")
-    names = [name for name, _ in c._bt_spec_entries]
+    assert c._pk_output_names == ("o",)
+    assert c._pk_state_names == ("s", "s2")
+    names = [name for name, _ in c._pk_spec_entries]
     assert names == ["o", "s", "s2"]
 
 
@@ -385,14 +385,14 @@ def test_invalid_param_name_raises():
         "Specs",
         (),
         {
-            "o": crematoriumModule.OutputSpec(),
-            "s": crematoriumModule.StateSpec(),
+            "o": PyroModule.OutputSpec(),
+            "s": PyroModule.StateSpec(),
         },
     )
     # A keyword param name is rejected while the runtime signature is built
     # (at class creation, before __init__/`_install_constrained` runs).
     with pytest.raises(ValueError, match="not a valid parameter name"):
-        type("M", (crematoriumModule,), {"Params": P, "Specs": S, "_step": _step})
+        type("M", (PyroModule,), {"Params": P, "Specs": S, "_step": _step})
 
 
 def test_constrained_returns_declaration_order():
@@ -620,10 +620,10 @@ def test_hidden_explicit_equivalence():
 
 def test_hidden_buffer_lazy_allocation():
     m = _Leaky(init_hidden=True)
-    assert m._bt_allocated is False
+    assert m._pk_allocated is False
     assert "mem" not in m._buffers
     m(torch.randn(B, F))
-    assert m._bt_allocated is True
+    assert m._pk_allocated is True
     assert "mem" in m._buffers
 
 
@@ -756,7 +756,7 @@ def test_initial_state_fills_defaults():
     state = m.initial_state((B, F))
     assert isinstance(state, tuple) and len(state) == 1
     assert state[0].shape == (B, F)
-    default = m._bt_state_specs[0].default
+    default = m._pk_state_specs[0].default
     assert torch.allclose(state[0], torch.full((B, F), float(default)))
 
 
@@ -877,7 +877,7 @@ def test_allocate_like_materializes_without_forward():
     m = _Leaky(init_hidden=True)
     x = torch.randn(B, F, dtype=torch.float64)
     m.allocate_like(x)
-    assert m._bt_allocated is True
+    assert m._pk_allocated is True
     assert "mem" in m._buffers
     assert m._buffers["mem"].shape == x.shape
     assert m._buffers["mem"].dtype == x.dtype
@@ -889,7 +889,7 @@ def test_allocate_like_noop_when_explicit():
     m = _Leaky(init_hidden=False)
     ret = m.allocate_like(torch.randn(B, F))
     assert ret is m
-    assert m._bt_allocated is False
+    assert m._pk_allocated is False
     assert "mem" not in m._buffers
 
 
@@ -1080,7 +1080,7 @@ def test_forward_sequence_eager_chunked_path():
 
 
 def test_set_sequence_scan_chunk_preserves_results():
-    from crematorium.base import _SEQUENCE_SCAN_CHUNK as _default_chunk
+    from pyrokinesis.module import _SEQUENCE_SCAN_CHUNK as _default_chunk
 
     torch.manual_seed(0)
     x_seq = torch.randn(T, B, F)
@@ -1117,7 +1117,7 @@ def test_forward_sequence_does_not_mutate_input_state():
     state = m.initial_state((B, F))
     snapshot = [s.clone() for s in state]
     m.forward_sequence(torch.randn(T, B, F), state)
-    for orig, snap in zip(state, snapshot):
+    for orig, snap in zip(state, snapshot, strict=True):
         assert torch.equal(orig, snap)
 
 
@@ -1185,9 +1185,9 @@ def test_compile_sequence_scan_explicit_state_none_allocates_per_call():
     # state=None allocates a fresh initial state inside the compiled call, so
     # repeated calls must be mutually independent and match eager.
     assert isinstance(out1, tuple) and isinstance(out2, tuple)
-    for a, b in zip(out1, out2):
+    for a, b in zip(out1, out2, strict=True):
         assert torch.allclose(a, b, atol=1e-5)
-    for a, b in zip(out1, ref):
+    for a, b in zip(out1, ref, strict=True):
         assert torch.allclose(a, b, atol=1e-5)
 
 
@@ -1208,9 +1208,9 @@ def test_compile_sequence_scan_explicit_provided_state_not_mutated():
     # The scan reads the provided state and returns a new final state; the
     # caller's tensors are never written in place.
     assert isinstance(out, tuple)
-    for a, b in zip(out, ref):
+    for a, b in zip(out, ref, strict=True):
         assert torch.allclose(a, b, atol=1e-5)
-    for given, before in zip(state, state_before):
+    for given, before in zip(state, state_before, strict=True):
         assert torch.equal(given, before)
 
 
@@ -1225,7 +1225,7 @@ def test_compile_sequence_scan_multi_matches_eager():
     out_c = compiled.forward_sequence(x_seq)
     out_e = eager.forward_sequence(x_seq)
     assert isinstance(out_c, tuple) and isinstance(out_e, tuple)
-    for a, b in zip(out_c, out_e):
+    for a, b in zip(out_c, out_e, strict=True):
         assert torch.allclose(a, b, atol=1e-5)
 
 
@@ -1233,7 +1233,7 @@ def test_compile_sequence_scan_routes_forward_sequence():
     torch._dynamo.reset()
     m = _Leaky(init_hidden=True)
     m.compile_sequence_scan(mode="default")
-    assert m._bt_compiled_sequence is not None
+    assert m._pk_compiled_sequence is not None
 
     ref = _Leaky(init_hidden=True)
     x_seq = torch.randn(T, B, F)
@@ -1247,10 +1247,10 @@ def test_compile_sequence_scan_allocates_hidden_before_compiled_call():
     torch._dynamo.reset()
     m = _Leaky(init_hidden=True)
     m.compile_sequence_scan(mode="default")
-    assert m._bt_allocated is False
+    assert m._pk_allocated is False
 
     m.forward_sequence(torch.randn(T, B, F))
-    assert m._bt_allocated is True
+    assert m._pk_allocated is True
     assert "mem" in m._buffers
     assert "out" in m._buffers
 
@@ -1267,7 +1267,7 @@ def test_compile_sequence_scan_edge_lengths_match_eager(t_len):
     out_c = compiled.forward_sequence(x_seq)
     out_e = eager.forward_sequence(x_seq)
     assert isinstance(out_c, tuple)
-    for a, b in zip(out_c, out_e):
+    for a, b in zip(out_c, out_e, strict=True):
         assert torch.allclose(a, b, atol=1e-5)
 
 
@@ -1326,9 +1326,9 @@ def test_compile_reduce_overhead_state_none_correct_and_held_survives():
     # must match eager, repeated calls must be independent, and graph-mode
     # cloning must keep previously returned tensors (incl. the state) intact.
     assert isinstance(first, tuple)
-    for a, b in zip(first, ref):
+    for a, b in zip(first, ref, strict=True):
         assert torch.allclose(a, b, atol=1e-5)
-    for a, b in zip(first, second):
+    for a, b in zip(first, second, strict=True):
         assert torch.equal(a, b)
 
 
@@ -1343,7 +1343,7 @@ def test_compile_clone_gating_default_no_clone(monkeypatch):
 
         return wrapped
 
-    monkeypatch.setattr("crematorium.base.torch.compile", fake_compile)
+    monkeypatch.setattr(torch, "compile", fake_compile)
 
     m = _Leaky(init_hidden=False)
     m.compile_sequence_scan(mode="default")
@@ -1362,14 +1362,14 @@ def test_compile_clone_gating_reduce_overhead_clones(monkeypatch):
 
         return wrapped
 
-    monkeypatch.setattr("crematorium.base.torch.compile", fake_compile)
+    monkeypatch.setattr(torch, "compile", fake_compile)
 
     m = _TwoOut(init_hidden=False)
     m.compile_sequence_scan(mode="reduce-overhead")
     out = m.forward_sequence(torch.randn(T, B, F))
     assert isinstance(out, tuple)
     assert out is not seen["r"]
-    for a, b in zip(out, seen["r"]):
+    for a, b in zip(out, seen["r"], strict=True):
         assert a is not b
         assert torch.equal(a, b)
 
@@ -1384,7 +1384,7 @@ def test_fast_sequence_compiles_scan():
     torch._dynamo.reset()
     m = _Leaky(init_hidden=True)
     m.fast_sequence_()
-    assert m._bt_compiled_sequence is not None
+    assert m._pk_compiled_sequence is not None
 
     ref = _Leaky(init_hidden=True)
     x_seq = torch.randn(T, B, F)
@@ -1397,7 +1397,7 @@ def test_fast_sequence_compile_scan_false():
     m = _Leaky()
     m.fast_sequence_(compile_scan=False)
     assert m.validate is False
-    assert m._bt_compiled_sequence is None
+    assert m._pk_compiled_sequence is None
 
 
 def test_fast_sequence_default_mode_is_default(monkeypatch):
@@ -1407,7 +1407,7 @@ def test_fast_sequence_default_mode_is_default(monkeypatch):
         captured.update(kw)
         return fn
 
-    monkeypatch.setattr("crematorium.base.torch.compile", fake_compile)
+    monkeypatch.setattr(torch, "compile", fake_compile)
 
     m = _Leaky()
     m.fast_sequence_()
@@ -1422,7 +1422,7 @@ def test_compile_sequence_scan_returns_self(monkeypatch):
     def fake_compile(fn, **kw):
         return fn
 
-    monkeypatch.setattr("crematorium.base.torch.compile", fake_compile)
+    monkeypatch.setattr(torch, "compile", fake_compile)
     m = _Leaky()
     assert m.compile_sequence_scan() is m
 
@@ -1469,18 +1469,18 @@ def test_set_extra_state_registers_missing_buffer():
     buf = torch.zeros(B, F)
     m.set_extra_state({"mem": buf})
     assert "mem" in m._buffers
-    assert m._bt_allocated is True
+    assert m._pk_allocated is True
     assert m._buffers["mem"] is buf
 
 
 def test_set_extra_state_none_noop():
     m = _Leaky(init_hidden=True)
     m.set_extra_state(None)
-    assert m._bt_allocated is False
+    assert m._pk_allocated is False
 
     m2 = _Leaky(init_hidden=False)
     m2.set_extra_state({"mem": torch.zeros(B, F)})
-    assert m2._bt_allocated is False
+    assert m2._pk_allocated is False
 
 
 # ----------------------------------------------------------------------
@@ -1491,7 +1491,7 @@ def test_set_extra_state_none_noop():
 def test_reset_noop_when_explicit():
     m = _Leaky(init_hidden=False)
     m.reset()
-    assert m._bt_allocated is False
+    assert m._pk_allocated is False
 
 
 def test_reset_restores_defaults_hidden():
@@ -1512,7 +1512,7 @@ def test_reset_uses_spec_default_not_zero():
 def test_detach_noop_when_explicit():
     m = _Leaky(init_hidden=False)
     m.detach()
-    assert m._bt_allocated is False
+    assert m._pk_allocated is False
 
 
 def test_detach_breaks_graph_hidden():
@@ -1568,9 +1568,9 @@ def test_signature_param_kwargs():
 
 
 def test_signature_extra_init_params_only_for_snn():
-    class _Plain(crematoriumModule):
+    class _Plain(PyroModule):
         class Specs:
-            o = crematoriumModule.OutputSpec()
+            o = PyroModule.OutputSpec()
 
         def _step(self, x):
             return x
@@ -1663,8 +1663,8 @@ def test_state_dict_does_not_include_hidden_buffers_as_plain_keys():
 def test_generic_rnn_needs_no_spike_grad_or_reset_machinery():
     m = _PlainRNN()
     assert not hasattr(m, "spike_grad")
-    assert not hasattr(m, "_bt_apply_resets")
-    assert not hasattr(m, "_bt_reset_exprs")
+    assert not hasattr(m, "_pk_apply_resets")
+    assert not hasattr(m, "_pk_reset_exprs")
 
 
 def test_generic_rnn_post_step_identity_keeps_first_output():

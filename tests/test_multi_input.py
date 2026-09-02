@@ -3,12 +3,12 @@ from __future__ import annotations
 import pytest
 import torch
 
-from crematorium import (
-    crematoriumModule,
+from pyrokinesis import (
+    PyroModule,
     InputSpec,
     no_validation,
 )
-from crematorium.base import Tensor
+from pyrokinesis import Tensor
 
 B, F = 4, 8
 G = 5
@@ -19,7 +19,7 @@ G = 5
 # ----------------------------------------------------------------------
 
 
-class _TwoInput(crematoriumModule):
+class _TwoInput(PyroModule):
     """Basal + apical inputs; state follows the primary (basal) input."""
 
     class Inputs:
@@ -27,14 +27,14 @@ class _TwoInput(crematoriumModule):
         inh: Tensor
 
     class Specs:
-        out = crematoriumModule.OutputSpec()
-        v = crematoriumModule.StateSpec(shape="x")
+        out = PyroModule.OutputSpec()
+        v = PyroModule.StateSpec(shape="x")
 
     def _step(self, x, inh, v):
         return torch.cat([x, inh], dim=-1), v + 1
 
 
-class _TwoInputListLike(crematoriumModule):
+class _TwoInputListLike(PyroModule):
     """Same dynamics; accepts list inputs (also exercises shape="input")."""
 
     class Inputs:
@@ -42,29 +42,29 @@ class _TwoInputListLike(crematoriumModule):
         inh: Tensor
 
     class Specs:
-        out = crematoriumModule.OutputSpec()
-        v = crematoriumModule.StateSpec(shape="input")
+        out = PyroModule.OutputSpec()
+        v = PyroModule.StateSpec(shape="input")
 
     def _step(self, x, inh, v):
         return torch.cat([x, inh], dim=-1), v + 1
 
 
-class _ExplicitPrimary(crematoriumModule):
+class _ExplicitPrimary(PyroModule):
     """Marks the second input primary via the mixed declaration syntax."""
 
     class Inputs:
         x: Tensor
-        inh: Tensor = crematoriumModule.Input(primary=True)
+        inh: Tensor = PyroModule.Input(primary=True)
 
     class Specs:
-        out = crematoriumModule.OutputSpec()
-        v = crematoriumModule.StateSpec(shape="input")
+        out = PyroModule.OutputSpec()
+        v = PyroModule.StateSpec(shape="input")
 
     def _step(self, x, inh, v):
         return torch.cat([x, inh], dim=-1), v + 1
 
 
-class _StateFromInh(crematoriumModule):
+class _StateFromInh(PyroModule):
     """State shape follows the non-primary input by name."""
 
     class Inputs:
@@ -72,14 +72,14 @@ class _StateFromInh(crematoriumModule):
         inh: Tensor
 
     class Specs:
-        out = crematoriumModule.OutputSpec()
-        v = crematoriumModule.StateSpec(shape="inh")
+        out = PyroModule.OutputSpec()
+        v = PyroModule.StateSpec(shape="inh")
 
     def _step(self, x, inh, v):
         return x.sum(dim=-1, keepdim=True) + v, v
 
 
-class _FixedShapeState(crematoriumModule):
+class _FixedShapeState(PyroModule):
     """Explicit tuple state shape with two inputs."""
 
     class Inputs:
@@ -87,21 +87,21 @@ class _FixedShapeState(crematoriumModule):
         inh: Tensor
 
     class Specs:
-        out = crematoriumModule.OutputSpec()
-        v = crematoriumModule.StateSpec(shape=(F,))
+        out = PyroModule.OutputSpec()
+        v = PyroModule.StateSpec(shape=(F,))
 
     def _step(self, x, inh, v):
         return x + inh, v + 1
 
 
-class _BaseInputs(crematoriumModule):
+class _BaseInputs(PyroModule):
     class Inputs:
         x: Tensor
         base_in: Tensor
 
     class Specs:
-        out = crematoriumModule.OutputSpec()
-        v = crematoriumModule.StateSpec()
+        out = PyroModule.OutputSpec()
+        v = PyroModule.StateSpec()
 
     def _step(self, x, base_in, v):
         return x + base_in, v
@@ -117,33 +117,33 @@ class _ChildInputs(_BaseInputs):
 
 class _OverrideInputs(_BaseInputs):
     class Inputs:
-        base_in: Tensor = crematoriumModule.Input(primary=True)
+        base_in: Tensor = PyroModule.Input(primary=True)
 
     def _step(self, x, base_in, v):
         return x + base_in, v
 
 
-class _DefaultState(crematoriumModule):
+class _DefaultState(PyroModule):
     class Inputs:
         x: Tensor
         inh: Tensor
 
     class Specs:
-        out = crematoriumModule.OutputSpec()
-        v = crematoriumModule.StateSpec(shape=None)
+        out = PyroModule.OutputSpec()
+        v = PyroModule.StateSpec(shape=None)
 
     def _step(self, x, inh, v):
         return torch.cat([x, inh], dim=-1), v + 1
 
 
-class _UnknownShape(crematoriumModule):
+class _UnknownShape(PyroModule):
     class Inputs:
         x: Tensor
         inh: Tensor
 
     class Specs:
-        out = crematoriumModule.OutputSpec()
-        v = crematoriumModule.StateSpec(shape="nope")
+        out = PyroModule.OutputSpec()
+        v = PyroModule.StateSpec(shape="nope")
 
     def _step(self, x, inh, v):
         return x + inh, v
@@ -166,27 +166,27 @@ T = 5
 
 
 def test_default_implicit_input_metadata():
-    class _Leaky(crematoriumModule):
+    class _Leaky(PyroModule):
         class Specs:
-            out = crematoriumModule.OutputSpec()
-            mem = crematoriumModule.StateSpec()
+            out = PyroModule.OutputSpec()
+            mem = PyroModule.StateSpec()
 
         def _step(self, x, mem):
             return x, mem
 
-    assert _Leaky._bt_input_names == ("x",)
-    assert _Leaky._bt_primary_input_index == 0
-    assert _Leaky._bt_input_specs[0].primary
+    assert _Leaky._pk_input_names == ("x",)
+    assert _Leaky._pk_primary_input_index == 0
+    assert _Leaky._pk_input_specs[0].primary
 
     m = _Leaky()
     assert "inputs" not in repr(m)
 
 
 def test_single_input_public_api_unchanged():
-    class _Leaky(crematoriumModule):
+    class _Leaky(PyroModule):
         class Specs:
-            out = crematoriumModule.OutputSpec()
-            mem = crematoriumModule.StateSpec()
+            out = PyroModule.OutputSpec()
+            mem = PyroModule.StateSpec()
 
         def _step(self, x, mem):
             return x, mem
@@ -334,11 +334,11 @@ def test_allocate_like_tuple_and_expanded():
     for alloc in ((torch.randn(B, F), torch.randn(B, G)),):
         m = _TwoInput(init_hidden=True)
         m.allocate_like(alloc)
-        assert m._bt_allocated
+        assert m._pk_allocated
 
     m = _TwoInput(init_hidden=True)
     m.allocate_like(torch.randn(B, F), torch.randn(B, G))
-    assert m._bt_allocated
+    assert m._pk_allocated
 
 
 def test_hidden_shape_mismatch_raises():
@@ -395,12 +395,12 @@ def test_shape_unknown_name_raises():
 
 
 def test_first_input_primary_by_default():
-    assert _TwoInput._bt_primary_input_index == 0
+    assert _TwoInput._pk_primary_input_index == 0
 
 
 def test_explicit_primary_works():
     m = _ExplicitPrimary()
-    assert m._bt_primary_input_index == 1
+    assert m._pk_primary_input_index == 1
 
     # shape="input" now follows the inh input.
     x, inh = _inputs()
@@ -416,42 +416,42 @@ def test_explicit_primary_works():
 def test_multiple_primary_inputs_raise():
     with pytest.raises(TypeError, match="multiple primary inputs"):
 
-        class _Bad(crematoriumModule):
+        class _Bad(PyroModule):
             class Inputs:
-                x = crematoriumModule.Input(primary=True)
-                inh = crematoriumModule.Input(primary=True)
+                x = PyroModule.Input(primary=True)
+                inh = PyroModule.Input(primary=True)
 
             class Specs:
-                out = crematoriumModule.OutputSpec()
-                v = crematoriumModule.StateSpec()
+                out = PyroModule.OutputSpec()
+                v = PyroModule.StateSpec()
 
             def _step(self, x, inh, v):
                 return x + inh, v
 
 
 def test_input_spec_dtype_stored():
-    class _D(crematoriumModule):
+    class _D(PyroModule):
         class Inputs:
-            x: Tensor = crematoriumModule.Input(dtype=float)
+            x: Tensor = PyroModule.Input(dtype=float)
 
         class Specs:
-            out = crematoriumModule.OutputSpec()
-            v = crematoriumModule.StateSpec()
+            out = PyroModule.OutputSpec()
+            v = PyroModule.StateSpec()
 
         def _step(self, x, v):
             return x, v
 
-    assert _D._bt_input_specs[0].dtype is float
+    assert _D._pk_input_specs[0].dtype is float
 
 
 def test_input_dtype_exact_match_enforced():
-    class _D(crematoriumModule):
+    class _D(PyroModule):
         class Inputs:
-            x: Tensor = crematoriumModule.Input(dtype=torch.float32)
+            x: Tensor = PyroModule.Input(dtype=torch.float32)
 
         class Specs:
-            out = crematoriumModule.OutputSpec()
-            v = crematoriumModule.StateSpec()
+            out = PyroModule.OutputSpec()
+            v = PyroModule.StateSpec()
 
         def _step(self, x, v):
             return x, v
@@ -461,18 +461,18 @@ def test_input_dtype_exact_match_enforced():
     assert m(torch.randn(B, F, dtype=torch.float32), *state)[0].dtype == torch.float32
 
     n = _D()
-    with pytest.raises(TypeError, match="declared with dtype=torch.float32"):
+    with pytest.raises(TypeError, match=r"declared with dtype=torch.float32"):
         n(torch.randn(B, F, dtype=torch.float64), *state)
 
 
 def test_input_dtype_python_float_enforced():
-    class _D(crematoriumModule):
+    class _D(PyroModule):
         class Inputs:
-            x: Tensor = crematoriumModule.Input(dtype=float)
+            x: Tensor = PyroModule.Input(dtype=float)
 
         class Specs:
-            out = crematoriumModule.OutputSpec()
-            v = crematoriumModule.StateSpec()
+            out = PyroModule.OutputSpec()
+            v = PyroModule.StateSpec()
 
         def _step(self, x, v):
             return x, v
@@ -487,13 +487,13 @@ def test_input_dtype_python_float_enforced():
 
 
 def test_input_dtype_python_int_enforced():
-    class _D(crematoriumModule):
+    class _D(PyroModule):
         class Inputs:
-            x: Tensor = crematoriumModule.Input(dtype=int)
+            x: Tensor = PyroModule.Input(dtype=int)
 
         class Specs:
-            out = crematoriumModule.OutputSpec()
-            v = crematoriumModule.StateSpec()
+            out = PyroModule.OutputSpec()
+            v = PyroModule.StateSpec()
 
         def _step(self, x, v):
             return x, v
@@ -528,7 +528,7 @@ def test_multi_input_eager_scan_with_explicit_state():
     xs, is_ = _seqs()
     state = m.initial_state((B, F))
 
-    out, *final = m.forward_sequence((xs, is_), state)
+    _out, *final = m.forward_sequence((xs, is_), state)
 
     assert torch.allclose(final[0], state[0] + float(T))
 
@@ -615,11 +615,11 @@ def test_compiled_hidden_multi_input():
 
 def test_wrong_input_count_raises_when_validate_on():
     m = _TwoInput()
-    x, inh = _inputs()
+    x, _inh = _inputs()
     state = m.initial_state((B, F))
 
     with pytest.raises(ValueError, match="expects 2 input tensors"):
-        m._forward_explicit((x,), state)
+        m._pk_forward_explicit((x,), state)
 
 
 def test_wrong_state_count_raises():
@@ -631,28 +631,28 @@ def test_wrong_state_count_raises():
 
 
 def test_validation_disabled_skips_input_count_check():
-    class _AnyArity(crematoriumModule):
+    class _AnyArity(PyroModule):
         class Inputs:
             x: Tensor
             inh: Tensor
 
         class Specs:
-            out = crematoriumModule.OutputSpec()
-            v = crematoriumModule.StateSpec()
+            out = PyroModule.OutputSpec()
+            v = PyroModule.StateSpec()
 
         def _step(self, x, inh, *extra):
             return x + inh, (extra[0] if extra else torch.zeros_like(x))
 
-    x, inh = _inputs()
+    x, _inh = _inputs()
     state = _AnyArity().initial_state((B, F))
 
     m = _AnyArity(validate=False)
-    out, *_ = m._forward_explicit((x,), state)
+    out, *_ = m._pk_forward_explicit((x,), state)
     assert out.shape == (B, F)
 
     n = _AnyArity(validate=True)
     with pytest.raises(ValueError, match="expects 2 input tensors"):
-        n._forward_explicit((x,), state)
+        n._pk_forward_explicit((x,), state)
 
 
 def test_no_validation_context_disables():
@@ -680,17 +680,17 @@ def test_fast_sequence_disables_validation():
 def test_input_collides_with_param_raises():
     with pytest.raises(TypeError, match="collide with parameter"):
 
-        class _Bad(crematoriumModule):
+        class _Bad(PyroModule):
             class Params:
-                inh = crematoriumModule.Param(0.5)
+                inh = PyroModule.Param(0.5)
 
             class Inputs:
                 x: Tensor
                 inh: Tensor
 
             class Specs:
-                out = crematoriumModule.OutputSpec()
-                v = crematoriumModule.StateSpec()
+                out = PyroModule.OutputSpec()
+                v = PyroModule.StateSpec()
 
             def _step(self, x, inh, v):
                 return x + inh, v
@@ -699,16 +699,16 @@ def test_input_collides_with_param_raises():
 def test_input_collides_with_constant_raises():
     with pytest.raises(TypeError, match="collide with constant"):
 
-        class _Bad(crematoriumModule):
-            dt = crematoriumModule.Constant(0.01, dtype=float)
+        class _Bad(PyroModule):
+            dt = PyroModule.Constant(0.01, dtype=float)
 
             class Inputs:
                 x: Tensor
                 dt: Tensor
 
             class Specs:
-                out = crematoriumModule.OutputSpec()
-                v = crematoriumModule.StateSpec()
+                out = PyroModule.OutputSpec()
+                v = PyroModule.StateSpec()
 
             def _step(self, x, dt, v):
                 return x + dt, v
@@ -717,14 +717,14 @@ def test_input_collides_with_constant_raises():
 def test_input_collides_with_output_raises():
     with pytest.raises(TypeError, match="collide with output/state"):
 
-        class _Bad(crematoriumModule):
+        class _Bad(PyroModule):
             class Inputs:
                 x: Tensor
                 out: Tensor
 
             class Specs:
-                out = crematoriumModule.OutputSpec()
-                v = crematoriumModule.StateSpec()
+                out = PyroModule.OutputSpec()
+                v = PyroModule.StateSpec()
 
             def _step(self, x, out, v):
                 return x + out, v
@@ -733,14 +733,14 @@ def test_input_collides_with_output_raises():
 def test_input_collides_with_state_raises():
     with pytest.raises(TypeError, match="collide with output/state"):
 
-        class _Bad(crematoriumModule):
+        class _Bad(PyroModule):
             class Inputs:
                 x: Tensor
                 v: Tensor
 
             class Specs:
-                out = crematoriumModule.OutputSpec()
-                v = crematoriumModule.StateSpec()
+                out = PyroModule.OutputSpec()
+                v = PyroModule.StateSpec()
 
             def _step(self, x, v, s):
                 return x + v, s
@@ -752,8 +752,8 @@ def _module_with_inputs(entries):
         "Specs",
         (),
         {
-            "out": crematoriumModule.OutputSpec(),
-            "v": crematoriumModule.StateSpec(),
+            "out": PyroModule.OutputSpec(),
+            "v": PyroModule.StateSpec(),
         },
     )
 
@@ -762,7 +762,7 @@ def _module_with_inputs(entries):
 
     return type(
         "_Dynamic",
-        (crematoriumModule,),
+        (PyroModule,),
         {"Inputs": inputs_cls, "Specs": specs_cls, "_step": _step},
     )
 
@@ -785,15 +785,15 @@ def test_non_identifier_input_name_raises():
 def test_subclass_inherits_and_extends_inputs():
     c = _ChildInputs()
 
-    assert c._bt_input_names == ("x", "base_in", "child_in")
-    assert c._bt_primary_input_index == 0
+    assert c._pk_input_names == ("x", "base_in", "child_in")
+    assert c._pk_primary_input_index == 0
 
 
 def test_subclass_override_primary():
     c = _OverrideInputs()
 
-    assert c._bt_input_names == ("x", "base_in")
-    assert c._bt_primary_input_index == 1
+    assert c._pk_input_names == ("x", "base_in")
+    assert c._pk_primary_input_index == 1
 
 
 def test_inherited_forward_and_scan():

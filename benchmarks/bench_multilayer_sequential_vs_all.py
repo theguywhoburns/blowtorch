@@ -1,4 +1,4 @@
-"""Benchmark a multilayer LIF network: crematorium Sequential vs snnTorch/Norse.
+"""Benchmark a multilayer LIF network: pyrokinesis Sequential vs snnTorch/Norse.
 
 The network is deliberately LIF-heavy and Linear-light (fewer affine
 transforms, more neuron layers), because that is where a fused scan wins:
@@ -11,7 +11,7 @@ Run from the repo root:
         [--steps 1000] [--batch 32] [--features 512] [--hidden 4] [--out 10]
 
 Rows:
-    crematorium Sequential  the whole network as one scan (forward_sequence),
+    pyrokinesis Sequential  the whole network as one scan (forward_sequence),
                           eager and compiled (fast_sequence_); plus the
                           per-step loop as a reference.
     snntorch             nn.Sequential of Linear/Leaky, canonical per-step
@@ -37,8 +37,8 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
-from crematorium.nn import Sequential
-from crematorium.snn import LIF as BtLIF
+from pyrokinesis.nn import Sequential
+from pyrokinesis.snn import LIF as PkLIF
 
 BETA = 0.9
 
@@ -93,12 +93,12 @@ def timeit(fn, device: torch.device, warmup: int, reps: int) -> tuple[float, flo
     return best, peak
 
 
-# crematorium Sequential
+# pyrokinesis Sequential
 
 
-def bt_seq(x: torch.Tensor, device: torch.device, hidden: int, out: int, compiled: bool):
-    layers = [nn.Linear(x.shape[2], x.shape[2])] + [BtLIF(validate=False)] * hidden
-    layers += [nn.Linear(x.shape[2], out), BtLIF(validate=False)]
+def pk_seq(x: torch.Tensor, device: torch.device, hidden: int, out: int, compiled: bool):
+    layers = [nn.Linear(x.shape[2], x.shape[2])] + [PkLIF(validate=False)] * hidden
+    layers += [nn.Linear(x.shape[2], out), PkLIF(validate=False)]
     m = Sequential(*layers).to(device)
     if compiled:
         m.fast_sequence_()
@@ -111,9 +111,9 @@ def bt_seq(x: torch.Tensor, device: torch.device, hidden: int, out: int, compile
     return run
 
 
-def bt_step(x: torch.Tensor, device: torch.device, hidden: int, out: int):
-    layers = [nn.Linear(x.shape[2], x.shape[2])] + [BtLIF(validate=False)] * hidden
-    layers += [nn.Linear(x.shape[2], out), BtLIF(validate=False)]
+def pk_step(x: torch.Tensor, device: torch.device, hidden: int, out: int):
+    layers = [nn.Linear(x.shape[2], x.shape[2])] + [PkLIF(validate=False)] * hidden
+    layers += [nn.Linear(x.shape[2], out), PkLIF(validate=False)]
     m = Sequential(*layers).to(device)
     steps, batch, features = x.shape
     state = m.initial_state((batch, features), device=device)
@@ -144,7 +144,7 @@ def snn_run(x: torch.Tensor, device: torch.device, hidden: int, out: int, compil
     def step(x_t, h_mems, r_mem):
         cur = lin_in(x_t)
         next_mems = []
-        for layer, mem in zip(hiddens, h_mems):
+        for layer, mem in zip(hiddens, h_mems, strict=True):
             spk, mem = layer(cur, mem)
             next_mems.append(mem)
             cur = spk
@@ -202,7 +202,7 @@ def measure(make, device: torch.device, warmup: int, reps: int):
         return timeit(make(), device, warmup, reps)
     except ImportError:
         return None
-    except Exception as exc:  # noqa: BLE001 - surface failures loudly
+    except Exception as exc:
         print(f"      ERROR: {exc}", flush=True)
         return None
 
@@ -234,10 +234,10 @@ def main() -> None:
     print(f"exporting to {path}")
     print("(compile happens lazily during warmup; only steady-state run time is reported)")
 
-    crematorium_rows = [
-        ("crematorium Sequential", "seq", False, lambda: bt_seq(x, device, hidden, out, False)),
-        ("crematorium Sequential", "seq", True, lambda: bt_seq(x, device, hidden, out, True)),
-        ("crematorium Sequential", "step", False, lambda: bt_step(x, device, hidden, out)),
+    pyrokinesis_rows = [
+        ("pyrokinesis Sequential", "seq", False, lambda: pk_seq(x, device, hidden, out, False)),
+        ("pyrokinesis Sequential", "seq", True, lambda: pk_seq(x, device, hidden, out, True)),
+        ("pyrokinesis Sequential", "step", False, lambda: pk_step(x, device, hidden, out)),
     ]
 
     other_rows = [
@@ -252,8 +252,8 @@ def main() -> None:
         writer.writerow(["name", "variant", "compiled", "ms_per_step", "steps_per_sec"])
 
         base = None
-        print("\n[ crematorium Sequential ]")
-        for name, variant, compiled, make in crematorium_rows:
+        print("\n[ pyrokinesis Sequential ]")
+        for name, variant, compiled, make in pyrokinesis_rows:
             label = f"{name} {variant}" + (" compile" if compiled else " eager")
             res = measure(make, device, args.warmup, args.reps)
             if res is None:
