@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Optional, Self
+from typing import Any, Callable, ClassVar, Optional, Self
 
 import torch
 
@@ -13,9 +13,6 @@ from .specs import (
     Tensor,
     _pk_floating_dtype,
 )
-
-if TYPE_CHECKING:
-    pass
 
 # State/output declarations, hidden-mode allocation, and state factories.
 # Host members used below but owned by earlier mixins are declared as type-only
@@ -165,6 +162,30 @@ class StateMixin:
             # Buffers already exist after _pk_alloc_hidden.
             self._buffers[name] = t
 
+    def _pk_shape_for_batch(self, spec: StateSpec, batch_shape: tuple[int, ...]) -> tuple[int, ...]:
+        if isinstance(spec.shape, str) and spec.shape != "input":
+            raise ValueError(
+                f"{type(self).__name__}.initial_state cannot resolve "
+                f"StateSpec(shape={spec.shape!r}) without example inputs; "
+                f"use initial_state_like(inputs)"
+            )
+        return spec.shape if isinstance(spec.shape, tuple) else batch_shape
+
+    def _pk_build_state(
+        self,
+        shapes: list[tuple[int, ...]],
+        device: Optional[torch.device],
+        dtype: Optional[torch.dtype],
+        fill: str,
+    ) -> tuple[Tensor, ...]:
+        out: list[Tensor] = []
+        for shape, spec in zip(shapes, self._pk_state_specs, strict=True):
+            if fill == "full":
+                out.append(torch.full(shape, self._pk_resolve_default(spec.default), device=device, dtype=dtype))
+            else:
+                out.append(torch.zeros(shape, device=device, dtype=dtype))
+        return tuple(out)
+
     def initial_state(
         self,
         batch_shape: tuple[int, ...],
@@ -181,28 +202,8 @@ class StateMixin:
         shaped by a named input resolve from the real input shapes.
         """
         dtype = self._pk_explicit_state_dtype(dtype)
-
-        state: list[Tensor] = []
-
-        for spec in self._pk_state_specs:
-            if isinstance(spec.shape, str) and spec.shape != "input":
-                raise ValueError(
-                    f"{type(self).__name__}.initial_state cannot resolve "
-                    f"StateSpec(shape={spec.shape!r}) without example inputs; "
-                    f"use initial_state_like(inputs)"
-                )
-            shape = spec.shape if isinstance(spec.shape, tuple) else batch_shape
-
-            state.append(
-                torch.full(
-                    shape,
-                    self._pk_resolve_default(spec.default),
-                    device=device,
-                    dtype=dtype,
-                )
-            )
-
-        return tuple(state)
+        shapes = [self._pk_shape_for_batch(s, batch_shape) for s in self._pk_state_specs]
+        return self._pk_build_state(shapes, device, dtype, "full")
 
     def zero_state(
         self,
@@ -217,27 +218,8 @@ class StateMixin:
         ``StateSpec.shape`` is an explicit tuple use that tuple instead.
         """
         dtype = self._pk_explicit_state_dtype(dtype)
-
-        state: list[Tensor] = []
-
-        for spec in self._pk_state_specs:
-            if isinstance(spec.shape, str) and spec.shape != "input":
-                raise ValueError(
-                    f"{type(self).__name__}.zero_state cannot resolve "
-                    f"StateSpec(shape={spec.shape!r}) without example inputs; "
-                    f"use zero_state_like(inputs)"
-                )
-            shape = spec.shape if isinstance(spec.shape, tuple) else batch_shape
-
-            state.append(
-                torch.zeros(
-                    shape,
-                    device=device,
-                    dtype=dtype,
-                )
-            )
-
-        return tuple(state)
+        shapes = [self._pk_shape_for_batch(s, batch_shape) for s in self._pk_state_specs]
+        return self._pk_build_state(shapes, device, dtype, "zero")
 
     def initial_state_like(
         self,
@@ -253,26 +235,11 @@ class StateMixin:
         inputs = self._pk_canonicalize_inputs(inputs)
         primary = inputs[self._pk_primary_input_index]
         dtype = self._pk_explicit_state_dtype(primary.dtype)
-
-        state: list[Tensor] = []
-
-        for spec in self._pk_state_specs:
-            shape = (
-                tuple(batch_shape)
-                if batch_shape is not None
-                else self._pk_spec_shape(spec, inputs)
-            )
-
-            state.append(
-                torch.full(
-                    shape,
-                    self._pk_resolve_default(spec.default),
-                    device=primary.device,
-                    dtype=dtype,
-                )
-            )
-
-        return tuple(state)
+        shapes = [
+            tuple(batch_shape) if batch_shape is not None else self._pk_spec_shape(s, inputs)
+            for s in self._pk_state_specs
+        ]
+        return self._pk_build_state(shapes, primary.device, dtype, "full")
 
     def zero_state_like(
         self,
@@ -285,25 +252,11 @@ class StateMixin:
         inputs = self._pk_canonicalize_inputs(inputs)
         primary = inputs[self._pk_primary_input_index]
         dtype = self._pk_explicit_state_dtype(primary.dtype)
-
-        state: list[Tensor] = []
-
-        for spec in self._pk_state_specs:
-            shape = (
-                tuple(batch_shape)
-                if batch_shape is not None
-                else self._pk_spec_shape(spec, inputs)
-            )
-
-            state.append(
-                torch.zeros(
-                    shape,
-                    device=primary.device,
-                    dtype=dtype,
-                )
-            )
-
-        return tuple(state)
+        shapes = [
+            tuple(batch_shape) if batch_shape is not None else self._pk_spec_shape(s, inputs)
+            for s in self._pk_state_specs
+        ]
+        return self._pk_build_state(shapes, primary.device, dtype, "zero")
 
     def reset(self) -> None:
         """

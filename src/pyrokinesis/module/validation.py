@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, ClassVar, Optional, Protocol
+from contextvars import ContextVar
+from typing import ClassVar, Optional, Protocol
 
 import torch
 
@@ -14,28 +15,22 @@ from .specs import (
     _pk_floating_dtype,
 )
 
-if TYPE_CHECKING:
-    pass
+# Global validation toggle — ContextVar for thread/async isolation
 
-# Global validation toggle
-
+_GLOBAL_VALIDATE_CTX: ContextVar[bool] = ContextVar("_GLOBAL_VALIDATE", default=True)
+# Back-compat alias for ``from .validation import _GLOBAL_VALIDATE``
 _GLOBAL_VALIDATE = True
 
 
 def set_validation(enabled: bool) -> None:
-    """Set the global default for validation.
+    """Set the global default for validation."""
 
-    Note: this mutates global state read on the hot path and is not
-    thread-safe. Use only from the main thread or protect with external
-    synchronization if you run concurrent training threads.
-    """
-    global _GLOBAL_VALIDATE
-    _GLOBAL_VALIDATE = bool(enabled)
+    _GLOBAL_VALIDATE_CTX.set(bool(enabled))
 
 
 def get_validation() -> bool:
     """Return the current global validation default."""
-    return _GLOBAL_VALIDATE
+    return _GLOBAL_VALIDATE_CTX.get()
 
 
 @contextmanager
@@ -44,14 +39,13 @@ def no_validation():
 
     Modules constructed with ``validate=None`` follow this toggle, so
     wrapping a hot loop in ``no_validation()`` skips their per-forward checks.
-    Not thread-safe (see :func:`set_validation`).
+    Isolated per context (thread/async-safe) via ContextVar.
     """
-    prev = get_validation()
-    set_validation(False)
+    token = _GLOBAL_VALIDATE_CTX.set(False)
     try:
         yield
     finally:
-        set_validation(prev)
+        _GLOBAL_VALIDATE_CTX.reset(token)
 
 
 # The checks below are free functions, so mixin and host code both call them
@@ -133,7 +127,10 @@ def check_input_dtypes(
                 )
             continue
         else:
-            continue
+            raise TypeError(
+                f"{type(module).__name__} input {name!r} has unsupported dtype {spec.dtype!r}; "
+                f"expected torch.dtype, float, int, or None"
+            )
 
         if x.dtype != expected:
             raise TypeError(

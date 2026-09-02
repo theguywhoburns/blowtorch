@@ -1600,7 +1600,6 @@ def test_signature_extra_init_params_only_for_snn():
 def test_hard_zero_reset_equals_zero_reset_on_binary():
     mem = torch.tensor([[0.0, 1.0, 2.0], [3.0, 0.0, 1.0]])
     spk = torch.tensor([[0.0, 1.0, 0.0], [1.0, 0.0, 1.0]])
-    th = torch.tensor(1.0)
     assert torch.equal(
         mem.masked_fill(spk > 0, 0.0),
         mem * (1.0 - spk),

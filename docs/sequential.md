@@ -18,8 +18,11 @@ net = Sequential(nn.Linear(4, 8), LIF(), LIF())
 
 Each layer maps an input shape to an output shape. Stateful layers own their
 state shapes; the container walks the whole stack on a meta-device pass
-(no math, no side effects) to learn the output shape and the shape of every
-state tensor.
+(executes each layer's `_step` on meta tensors under `torch.random.fork_rng()`
+and a probe lock — RNG does not bleed, concurrent probes are serialized, but
+data-dependent Python branching on tensor values still fails with a
+`Sequential shape probe failed` hint) to learn the output shape and the shape
+of every state tensor.
 
 - Stateful layers must be **single-input** and **single-output** (one tensor
   per step). A layer declaring multiple inputs (e.g. `MCN`) or multiple outputs

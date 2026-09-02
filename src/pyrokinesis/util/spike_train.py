@@ -25,9 +25,11 @@ class SpikeTrain:
         ``spk_ind[time_pointer[t] : time_pointer[t + 1]]`` are the events of
         timestep ``t``.
 
-    All construction and slicing is vectorized on the packed tensors' device
-    (``argwhere`` / ``repeat_interleave`` / ``index_add_``); nothing loops
-    over timesteps in Python, so large trains stay on the GPU.
+    Construction and ``from_dense``/``to_dense`` are vectorized on the packed
+    tensors' device (``argwhere`` / ``repeat_interleave`` / ``index_add_``) with
+    no Python loop over timesteps, so large trains stay on the GPU.
+    Per-timestep access (``__getitem__``/``__iter__``) iterates in Python and
+    syncs ``time_pointer`` per step.
 
     ``SpikeTrain.custom(fn, *args, **kwargs)`` packs the output of any
     user-provided generator: ``fn`` returns a dense ``(T, B, ...)`` tensor and

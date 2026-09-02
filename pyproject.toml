@@ -126,11 +126,3 @@ src = ["src", "tests", "benchmarks"]
 #   B        - bugbear (likely bugs, common pitfalls)
 #   RUF      - ruff-specific lints
 select = ["E4", "E7", "E9", "F", "B", "RUF"]
-# Neuron modules are class-per-file CamelCase by design; N999 ("module
-# name should be lowercase") would fire on every neuron file.
-ignore = ["N999"]
-
-[tool.ruff.lint.per-file-ignores]
-# construction.py uses ``exec`` for a deliberate, contained codegen step;
-# S102 (exec-built-in) is intentional there.
-"src/*" = ["S102"]

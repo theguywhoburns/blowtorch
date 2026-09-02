@@ -42,5 +42,8 @@ jobs:
       - name: Run tests
         run: uv run pytest -q -m "not slow"
 
+      - name: Lint
+        run: uv run ruff check .
+
       - name: Typecheck
         run: uv run pyright src

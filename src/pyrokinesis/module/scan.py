@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Optional, Self
+from contextvars import ContextVar
+from typing import Any, Callable, ClassVar, Optional, Self
 
 import torch
 
@@ -18,9 +19,6 @@ from .validation import (
     is_validating,
     set_validating,
 )
-
-if TYPE_CHECKING:
-    pass
 
 
 def _clone_last_for_buffer(t: Tensor, spec: OutputSpec) -> Tensor:
@@ -44,7 +42,13 @@ def _store_hidden_seq_buffers(
 
 # In eager scans, batch this many steps into a single index_copy_ scatter so
 # peak memory stays at input + output (no per-step (B, F) list held for stack).
+_SEQUENCE_SCAN_CHUNK_CTX: ContextVar[int] = ContextVar("_SEQUENCE_SCAN_CHUNK", default=8)
+# Back-compat for ``from .scan import _SEQUENCE_SCAN_CHUNK``
 _SEQUENCE_SCAN_CHUNK = 8
+
+
+def _get_sequence_scan_chunk() -> int:
+    return _SEQUENCE_SCAN_CHUNK_CTX.get()
 
 
 def set_sequence_scan_chunk(chunk: int) -> None:
@@ -56,14 +60,13 @@ def set_sequence_scan_chunk(chunk: int) -> None:
     depends on hardware, dtype, and batch/feature dims. Pass ``1`` to disable
     chunking.
 
-    Note: mutates global state and is not thread-safe.
+    Context-local via ContextVar (thread/async-safe).
     """
-    global _SEQUENCE_SCAN_CHUNK
 
     if not isinstance(chunk, int) or isinstance(chunk, bool) or chunk < 1:
         raise ValueError(f"scan chunk must be a positive int, got {chunk!r}")
 
-    _SEQUENCE_SCAN_CHUNK = chunk
+    _SEQUENCE_SCAN_CHUNK_CTX.set(chunk)
 
 
 # Time-major scan over a pure step function.
@@ -128,8 +131,8 @@ def sequence_scan(
         cur = out0[n_outputs:]
         idx = torch.arange(T, device=inputs_seq[0].device)
 
-        for lo in range(1, T, _SEQUENCE_SCAN_CHUNK):
-            hi = min(lo + _SEQUENCE_SCAN_CHUNK, T)
+        for lo in range(1, T, _get_sequence_scan_chunk()):
+            hi = min(lo + _get_sequence_scan_chunk(), T)
 
             chunks: list[list[Tensor]] = [[] for _ in range(n_outputs)]
 

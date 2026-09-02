@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import keyword
 import types
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 import torch
 import torch.nn as nn
 
 from .specs import Constraint, identity
+
+_PK_CONSTRAINED_CACHE: dict[tuple, Callable[..., Any]] = {}
 
 if TYPE_CHECKING:
     from . import PyroModule
@@ -162,10 +164,16 @@ def _pk_install_constrained(module: PyroModule) -> None:
         ret = "()"
 
     src = f"def _pk_constrained(self):\n    return {ret}\n"
+    key = (param_names, tuple(id(c) for c in module._pk_constraints), src)
+    cached = _PK_CONSTRAINED_CACHE.get(key)
+    if cached is not None:
+        module._pk_constrained_fn = types.MethodType(cached, module)
+        return
 
     ns: dict[str, Any] = {}
     exec(src, ns)
 
+    _PK_CONSTRAINED_CACHE[key] = ns["_pk_constrained"]
     module._pk_constrained_fn = types.MethodType(ns["_pk_constrained"], module)
 
 

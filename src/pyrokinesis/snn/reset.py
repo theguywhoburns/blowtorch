@@ -4,8 +4,11 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable
 
 import types
+from typing import Any
 
 from pyrokinesis import ParamSpec, StateSpec, StepOutput, identity
+
+_PK_RESET_CACHE: dict[str, Any] = {}
 
 if TYPE_CHECKING:
     from .module import SnnModule
@@ -170,8 +173,13 @@ class ResetMixin:
                 raise ValueError(f"Unknown reset kind {reset_spec.kind!r}")
         lines.append("return (" + ", ".join(f"state_{i}" for i in range(len(self._pk_state_specs))) + ",)")  # type: ignore[attr-defined]
         src = "def _pk_apply_resets(self, pre_state, spk):\n    " + "\n    ".join(lines)
+        cached = _PK_RESET_CACHE.get(src)
+        if cached is not None:
+            self._pk_apply_resets = types.MethodType(cached, self)  # type: ignore[attr-defined]
+            return
         ns: dict[str, object] = {}
         exec(src, ns)
+        _PK_RESET_CACHE[src] = ns["_pk_apply_resets"]
         self._pk_apply_resets = types.MethodType(ns["_pk_apply_resets"], self)  # type: ignore[attr-defined]
 
     def _pk_constraint_expr(self, param_name: str) -> str:
