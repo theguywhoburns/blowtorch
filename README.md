@@ -8,7 +8,9 @@ are described by plain nested classes (`Params`, `Specs`) and a single
 and sequence scans - is automatic.
 
 Plain PyTorch only. No custom CUDA kernels; the speed comes from
-`torch.compile` over pure Python math.
+`torch.compile` over pure Python math. Sequence scans also hold ~30% less
+memory than the snnTorch/Norse equivalents on identical hardware (see
+[Benchmarks](#benchmarks)).
 
 ## Install
 
@@ -76,7 +78,8 @@ From that declaration the framework derives everything else:
   `zero_state`, `allocate_like`, ...), and `forward_sequence` are derived;
   you don't write them.
 - Multi-input modules declare a nested `Inputs` class and `_step` receives
-  the inputs positionally. Call sites accept a single tensor, a
+  the inputs positionally (e.g. `MCN`'s basal and apical inputs — see
+  `src/pyrokinesis/snn/neurons/MCN.py`). Call sites accept a single tensor, a
   tuple/list, or a dict keyed by input name.
 
 ## Running it
@@ -124,6 +127,10 @@ import torch.nn as nn
 net = Sequential(nn.Linear(64, 64), LIF(), nn.Linear(64, 10), LIF())
 ```
 
+Note: `Sequential` threads a single tensor, so multi-input modules (like
+`MCN`) cannot be stacked inside it — compose those manually or with a
+branching container.
+
 Training (explicit mode, backprop through time over `forward_sequence`):
 
 ```python
@@ -164,11 +171,12 @@ Without it the second `backward()` fails. Details in
 - **Surrogate gradient** - `spike_grad=` at construction swaps the default
   straight-through estimator. Available: `sigmoid_surrogate(beta)`,
   `atan_surrogate(beta)`, `triangular_surrogate(beta)`,
-  `fast_sigmoid_surrogate(beta)`, `straight_through_surrogate`. A surrogate
-  with a beta tied to a param goes stale if that param learns: mark the
-  param with `frozen_surrogate=True` and the constructor refuses an
-  explicit `spike_grad` alongside a learnable one instead of training on
-  silently frozen math.
+  `fast_sigmoid_surrogate(beta)`, `straight_through_surrogate`. Params whose
+  drift would invalidate a frozen surrogate are marked
+  `frozen_surrogate=True` (e.g. `MCN`'s `tau_L`); with a marked param
+  learnable, the constructor refuses an explicit `spike_grad` rather than
+  train on silently frozen math — keep the param fixed, or pass a callable
+  that reads the live value.
 - **Validation** - `validate=True` (default) checks step arity and state
   shapes on each call; override per module, or globally with
   `set_validation()` / `no_validation()`. Cost is ~10-20% in eager mode
@@ -209,6 +217,9 @@ Measured on `NVIDIA GeForce RTX 3050 Laptop GPU 4G` (single consumer
 laptop GPU, best-of steady-state numbers — one data point, not evidence).
 Pyrokinesis rows use `validate=False` (snnTorch/Norse have no equivalent
 toggle). Tables below are LIF, T=1000, B=32, F=1024:
+
+- Sequence mode uses ~30% less memory than the snnTorch/Norse equivalents
+  here (254 vs ~378 MiB) — relevant on 4-8GB laptop GPUs.
 
 | library         | mode          | compiled | ms      | steps/s  | peak MiB | vs pyrokinesis seq eager |
 | --------------- | ------------- | -------- | ------- | ------- | -------- | ------------------------ |
