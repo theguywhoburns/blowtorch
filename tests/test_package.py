@@ -1,9 +1,9 @@
-import pyrokinesis
+import crematorium
 
 
 def test_public_exports_match_all():
     expected = [
-        "PyroModule",
+        "CrModule",
         "Tensor",
         "StepOutput",
         "Param",
@@ -23,21 +23,21 @@ def test_public_exports_match_all():
         "get_validation",
         "no_validation",
     ]
-    assert sorted(pyrokinesis.__all__) == sorted(expected)
+    assert sorted(crematorium.__all__) == sorted(expected)
 
     for name in expected:
-        assert callable(getattr(pyrokinesis, name))
+        assert callable(getattr(crematorium, name))
 
     for name in ("set_validation", "get_validation", "no_validation"):
-        assert callable(getattr(pyrokinesis, name))
+        assert callable(getattr(crematorium, name))
 
 
 def test_star_import_exposes_core_names():
     ns = {}
-    exec("from pyrokinesis import *", ns)
+    exec("from crematorium import *", ns)
 
     for name in (
-        "PyroModule",
+        "CrModule",
         "Tensor",
         "StepOutput",
         "Param",

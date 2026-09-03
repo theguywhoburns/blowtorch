@@ -1,15 +1,15 @@
 # Sequential networks
 
-`pyrokinesis.nn.Sequential` stacks layers into a network: stateful neurons
-(`PyroModule` subclasses, e.g. `LIF`) and plain stateless `nn.Module`
+`crematorium.nn.Sequential` stacks layers into a network: stateful neurons
+(`CrModule` subclasses, e.g. `LIF`) and plain stateless `nn.Module`
 layers (e.g. `nn.Linear`) in any order. It is a thin topology manager - it
 moves data between layers and threads a flat state tuple through the
 time-major scan, mirroring `torch.nn.Sequential`.
 
 ```python
 import torch
-from pyrokinesis.nn import Sequential
-from pyrokinesis.snn import LIF
+from crematorium.nn import Sequential
+from crematorium.snn import LIF
 
 net = Sequential(nn.Linear(4, 8), LIF(), LIF())
 ```

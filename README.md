@@ -1,4 +1,4 @@
-# pyrokinesis
+# crematorium
 
 [![CI](https://github.com/theguywhoburns/blowtorch/actions/workflows/test.yml/badge.svg)](https://github.com/theguywhoburns/blowtorch/actions/workflows/test.yml)
 
@@ -14,13 +14,13 @@ memory than the snnTorch/Norse equivalents on identical hardware (see
 
 ## Install
 
-`pyrokinesis` uses `torch>=2.13.0`, selected via an extra matching your
+`crematorium` uses `torch>=2.13.0`, selected via an extra matching your
 backend:
 
 ```bash
-pip install pyrokinesis[cu130]   # NVIDIA / CUDA 13.0
-pip install pyrokinesis[cpu]     # CPU only
-pip install pyrokinesis[rocm]    # AMD / ROCm 7.2
+pip install crematorium[cu130]   # NVIDIA / CUDA 13.0
+pip install crematorium[cpu]     # CPU only
+pip install crematorium[rocm]    # AMD / ROCm 7.2
 ```
 
 The extras are mutually exclusive: pick exactly one. The `rocm` extra also
@@ -36,8 +36,8 @@ compiled scans on AMD.
 Subclass `SnnModule`, declare `Params` and `Specs`, implement `_step`:
 
 ```python
-from pyrokinesis import clamp_positive, clamp_unit_interval
-from pyrokinesis.snn import Reset, SnnModule
+from crematorium import clamp_positive, clamp_unit_interval
+from crematorium.snn import Reset, SnnModule
 
 class MyLIF(SnnModule):
     class Params:
@@ -79,7 +79,7 @@ From that declaration the framework derives everything else:
   you don't write them.
 - Multi-input modules declare a nested `Inputs` class and `_step` receives
   the inputs positionally (e.g. `MCN`'s basal and apical inputs — see
-  `src/pyrokinesis/snn/neurons/MCN.py`). Call sites accept a single tensor, a
+  `src/crematorium/snn/neurons/MCN.py`). Call sites accept a single tensor, a
   tuple/list, or a dict keyed by input name.
 
 ## Running it
@@ -88,7 +88,7 @@ Time-major sequences `(time, batch, features)`:
 
 ```python
 import torch
-from pyrokinesis.snn import LIF
+from crematorium.snn import LIF
 
 x = torch.randn(1000, 32, 64)
 
@@ -121,7 +121,7 @@ Multilayer stacks compose `nn.Module` layers and neurons; the whole stack
 scans and compiles as one unit (see [docs/sequential.md](docs/sequential.md)):
 
 ```python
-from pyrokinesis.nn import Sequential
+from crematorium.nn import Sequential
 import torch.nn as nn
 
 net = Sequential(nn.Linear(64, 64), LIF(), nn.Linear(64, 10), LIF())
@@ -197,7 +197,7 @@ Without it the second `backward()` fails. Details in
 
 - Neurons: `LIF`, `AdEx`, `ALIF`, `HH`, `Izhikevich`, `SRM0`,
   `TwoCompartment`, `MCN` (three-compartment basal/apical/soma).
-- `SpikeTrain` (`pyrokinesis.util.SpikeTrain`): quantile fractions to
+- `SpikeTrain` (`crematorium.util.SpikeTrain`): quantile fractions to
   Poisson population spike trains via Gaussian receptive fields, plus
   Poisson and latency encoders and `.custom(...)`; dense or event-packed
   GPU form. See [examples/spike_train.py](examples/spike_train.py).
@@ -215,22 +215,22 @@ Without it the second `backward()` fails. Details in
 
 Measured on `NVIDIA GeForce RTX 3050 Laptop GPU 4G` (single consumer
 laptop GPU, best-of steady-state numbers — one data point, not evidence).
-Pyrokinesis rows use `validate=False` (snnTorch/Norse have no equivalent
+Crematorium rows use `validate=False` (snnTorch/Norse have no equivalent
 toggle). Tables below are LIF, T=1000, B=32, F=1024:
 
 - Sequence mode uses ~30% less memory than the snnTorch/Norse equivalents
   here (254 vs ~378 MiB) — relevant on 4-8GB laptop GPUs.
 
-| library         | mode          | compiled | ms      | steps/s  | peak MiB | vs pyrokinesis seq eager |
+| library         | mode          | compiled | ms      | steps/s  | peak MiB | vs crematorium seq eager |
 | --------------- | ------------- | -------- | ------- | ------- | -------- | ------------------------ |
-| pyrokinesis LIF | seq hidden    | eager    | 39.918  | 25,051   | 254.6    | 1.00x                    |
-| pyrokinesis LIF | seq hidden    | compile  | 3.451   | 289,810  | 252.5    | 0.09x                    |
-| pyrokinesis LIF | seq explicit  | eager    | 41.180  | 24,284   | 254.8    | 1.03x                    |
-| pyrokinesis LIF | seq explicit  | compile  | 3.420   | 292,401  | 252.4    | 0.09x                    |
-| pyrokinesis LIF | step hidden   | eager    | 45.254  | 22,098   | 126.8    | 1.13x                    |
-| pyrokinesis LIF | step hidden   | compile  | 38.433  | 26,020   | 126.5    | 0.96x                    |
-| pyrokinesis LIF | step explicit | eager    | 41.608  | 24,034   | 127.0    | 1.04x                    |
-| pyrokinesis LIF | step explicit | compile  | 36.418  | 27,459   | 126.8    | 0.91x                    |
+| crematorium LIF | seq hidden    | eager    | 39.918  | 25,051   | 254.6    | 1.00x                    |
+| crematorium LIF | seq hidden    | compile  | 3.451   | 289,810  | 252.5    | 0.09x                    |
+| crematorium LIF | seq explicit  | eager    | 41.180  | 24,284   | 254.8    | 1.03x                    |
+| crematorium LIF | seq explicit  | compile  | 3.420   | 292,401  | 252.4    | 0.09x                    |
+| crematorium LIF | step hidden   | eager    | 45.254  | 22,098   | 126.8    | 1.13x                    |
+| crematorium LIF | step hidden   | compile  | 38.433  | 26,020   | 126.5    | 0.96x                    |
+| crematorium LIF | step explicit | eager    | 41.608  | 24,034   | 127.0    | 1.04x                    |
+| crematorium LIF | step explicit | compile  | 36.418  | 27,459   | 126.8    | 0.91x                    |
 | snntorch        | seq           | eager    | 101.685 | 9,834    | 377.5    | 2.55x                    |
 | snntorch        | seq           | compile  | 39.432  | 25,360   | 378.0    | 0.99x                    |
 | norse           | seq           | eager    | 100.005 | 9,999    | 378.3    | 2.51x                    |
@@ -247,17 +247,17 @@ comparable across all three (~127 MiB). Compiled timings vary run-to-run
 on laptop GPUs (typical single runs read ~3.3-3.8 ms here).
 
 > **Ratio convention**: `bench_all_vs.py` prints `framework_time /
-> pyrokinesis_seq_eager_time` as the trailing `(N.Nx)` factor. Below 1.0
+> crematorium_seq_eager_time` as the trailing `(N.Nx)` factor. Below 1.0
 > means faster than the first measured row (`seq hidden eager`).
 
 Multilayer network (`Linear(512,512) -> LIF x4 -> Linear(512,10) -> LIF`,
 T=1000, B=32, F=512):
 
-| library                | mode      | compiled | ms      | steps/s | peak MiB | vs pyrokinesis seq eager |
+| library                | mode      | compiled | ms      | steps/s | peak MiB | vs crematorium seq eager |
 | ---------------------- | --------- | -------- | ------- | ------- | -------- | ------------------------ |
-| pyrokinesis Sequential | seq       | eager    | 217.549 | 4,597   | 74.4     | 1.00x                    |
-| pyrokinesis Sequential | seq       | compile  | 22.759  | 43,938  | 79.5     | 0.10x                    |
-| pyrokinesis Sequential | step      | eager    | 229.107 | 4,365   | 73.7     | 1.05x                    |
+| crematorium Sequential | seq       | eager    | 217.549 | 4,597   | 74.4     | 1.00x                    |
+| crematorium Sequential | seq       | compile  | 22.759  | 43,938  | 79.5     | 0.10x                    |
+| crematorium Sequential | step      | eager    | 229.107 | 4,365   | 73.7     | 1.05x                    |
 | snntorch               | step loop | eager    | 575.159 | 1,739   | 76.2     | 2.64x                    |
 | snntorch               | step loop | compile  | 99.565  | 10,044  | 77.2     | 0.46x                    |
 | norse                  | seq       | eager    | 514.664 | 1,943   | 263.2    | 2.37x                    |

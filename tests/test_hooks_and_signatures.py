@@ -7,13 +7,13 @@ from typing import Callable, ClassVar, Optional
 
 import pytest
 
-from pyrokinesis import StepOutput, Tensor
-from pyrokinesis.nn import Sequential
-from pyrokinesis.snn import LIF, SnnModule
+from crematorium import StepOutput, Tensor
+from crematorium.nn import Sequential
+from crematorium.snn import LIF, SnnModule
 
 
 # ---------------------------------------------------------------------------
-# _pk_extra_init_params aggregation dedups by name
+# _cr_extra_init_params aggregation dedups by name
 # ---------------------------------------------------------------------------
 
 
@@ -25,7 +25,7 @@ class TestExtraInitParamsDedup:
                 mem = SnnModule.StateSpec()
 
             @classmethod
-            def _pk_extra_init_params(cls) -> list[inspect.Parameter]:
+            def _cr_extra_init_params(cls) -> list[inspect.Parameter]:
                 # Mirrors SnnModule's own entry — base-first dedup keeps the
                 # base one and skips this duplicate.
                 return [
@@ -60,37 +60,37 @@ class TestExtraInitParamsDedup:
 
 class TestHookReplaceSemantics:
     def test_lif_has_reset_mixin_hook(self):
-        hook_names = [fn.__qualname__ for fn in LIF._pk_hook_post_steps]
-        assert any("ResetMixin._pk_hook_post__rst" in h for h in hook_names), (
-            f"Expected ResetMixin._pk_hook_post__rst in chain, got: {hook_names}"
+        hook_names = [fn.__qualname__ for fn in LIF._cr_hook_post_steps]
+        assert any("ResetMixin._cr_hook_post__rst" in h for h in hook_names), (
+            f"Expected ResetMixin._cr_hook_post__rst in chain, got: {hook_names}"
         )
 
     def test_subclass_override_replaces_parent_hook(self):
         class ChildLIF(LIF):
             _hook_fired: ClassVar[list[str]] = []
 
-            def _pk_hook_post__rst(self, out: StepOutput) -> StepOutput:
+            def _cr_hook_post__rst(self, out: StepOutput) -> StepOutput:
                 ChildLIF._hook_fired.append("child")
                 return out
 
-        hook_names = [fn.__qualname__ for fn in ChildLIF._pk_hook_post_steps]
-        assert any("ChildLIF._pk_hook_post__rst" in h for h in hook_names), (
+        hook_names = [fn.__qualname__ for fn in ChildLIF._cr_hook_post_steps]
+        assert any("ChildLIF._cr_hook_post__rst" in h for h in hook_names), (
             f"Expected ChildLIF hook, got: {hook_names}"
         )
-        assert not any("ResetMixin._pk_hook_post__rst" in h for h in hook_names), (
+        assert not any("ResetMixin._cr_hook_post__rst" in h for h in hook_names), (
             f"Parent ResetMixin hook should NOT be in chain: {hook_names}"
         )
 
     def test_subclass_adding_new_hook_tag(self):
         class ExtendedLIF(LIF):
-            def _pk_hook_post__custom(self, out: StepOutput) -> StepOutput:
+            def _cr_hook_post__custom(self, out: StepOutput) -> StepOutput:
                 return out
 
-        hook_names = [fn.__qualname__ for fn in ExtendedLIF._pk_hook_post_steps]
-        assert any("ResetMixin._pk_hook_post__rst" in h for h in hook_names), (
+        hook_names = [fn.__qualname__ for fn in ExtendedLIF._cr_hook_post_steps]
+        assert any("ResetMixin._cr_hook_post__rst" in h for h in hook_names), (
             f"Expected base _rst hook, got: {hook_names}"
         )
-        assert any("ExtendedLIF._pk_hook_post__custom" in h for h in hook_names), (
+        assert any("ExtendedLIF._cr_hook_post__custom" in h for h in hook_names), (
             f"Expected new _custom hook, got: {hook_names}"
         )
 

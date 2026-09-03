@@ -3,12 +3,12 @@ from __future__ import annotations
 import pytest
 import torch
 
-from pyrokinesis import (
-    PyroModule,
+from crematorium import (
+    CrModule,
     InputSpec,
     no_validation,
 )
-from pyrokinesis import Tensor
+from crematorium import Tensor
 
 B, F = 4, 8
 G = 5
@@ -19,7 +19,7 @@ G = 5
 # ----------------------------------------------------------------------
 
 
-class _TwoInput(PyroModule):
+class _TwoInput(CrModule):
     """Basal + apical inputs; state follows the primary (basal) input."""
 
     class Inputs:
@@ -27,14 +27,14 @@ class _TwoInput(PyroModule):
         inh: Tensor
 
     class Specs:
-        out = PyroModule.OutputSpec()
-        v = PyroModule.StateSpec(shape="x")
+        out = CrModule.OutputSpec()
+        v = CrModule.StateSpec(shape="x")
 
     def _step(self, x, inh, v):
         return torch.cat([x, inh], dim=-1), v + 1
 
 
-class _TwoInputListLike(PyroModule):
+class _TwoInputListLike(CrModule):
     """Same dynamics; accepts list inputs (also exercises shape="input")."""
 
     class Inputs:
@@ -42,29 +42,29 @@ class _TwoInputListLike(PyroModule):
         inh: Tensor
 
     class Specs:
-        out = PyroModule.OutputSpec()
-        v = PyroModule.StateSpec(shape="input")
+        out = CrModule.OutputSpec()
+        v = CrModule.StateSpec(shape="input")
 
     def _step(self, x, inh, v):
         return torch.cat([x, inh], dim=-1), v + 1
 
 
-class _ExplicitPrimary(PyroModule):
+class _ExplicitPrimary(CrModule):
     """Marks the second input primary via the mixed declaration syntax."""
 
     class Inputs:
         x: Tensor
-        inh: Tensor = PyroModule.Input(primary=True)
+        inh: Tensor = CrModule.Input(primary=True)
 
     class Specs:
-        out = PyroModule.OutputSpec()
-        v = PyroModule.StateSpec(shape="input")
+        out = CrModule.OutputSpec()
+        v = CrModule.StateSpec(shape="input")
 
     def _step(self, x, inh, v):
         return torch.cat([x, inh], dim=-1), v + 1
 
 
-class _StateFromInh(PyroModule):
+class _StateFromInh(CrModule):
     """State shape follows the non-primary input by name."""
 
     class Inputs:
@@ -72,14 +72,14 @@ class _StateFromInh(PyroModule):
         inh: Tensor
 
     class Specs:
-        out = PyroModule.OutputSpec()
-        v = PyroModule.StateSpec(shape="inh")
+        out = CrModule.OutputSpec()
+        v = CrModule.StateSpec(shape="inh")
 
     def _step(self, x, inh, v):
         return x.sum(dim=-1, keepdim=True) + v, v
 
 
-class _FixedShapeState(PyroModule):
+class _FixedShapeState(CrModule):
     """Explicit tuple state shape with two inputs."""
 
     class Inputs:
@@ -87,21 +87,21 @@ class _FixedShapeState(PyroModule):
         inh: Tensor
 
     class Specs:
-        out = PyroModule.OutputSpec()
-        v = PyroModule.StateSpec(shape=(F,))
+        out = CrModule.OutputSpec()
+        v = CrModule.StateSpec(shape=(F,))
 
     def _step(self, x, inh, v):
         return x + inh, v + 1
 
 
-class _BaseInputs(PyroModule):
+class _BaseInputs(CrModule):
     class Inputs:
         x: Tensor
         base_in: Tensor
 
     class Specs:
-        out = PyroModule.OutputSpec()
-        v = PyroModule.StateSpec()
+        out = CrModule.OutputSpec()
+        v = CrModule.StateSpec()
 
     def _step(self, x, base_in, v):
         return x + base_in, v
@@ -117,33 +117,33 @@ class _ChildInputs(_BaseInputs):
 
 class _OverrideInputs(_BaseInputs):
     class Inputs:
-        base_in: Tensor = PyroModule.Input(primary=True)
+        base_in: Tensor = CrModule.Input(primary=True)
 
     def _step(self, x, base_in, v):
         return x + base_in, v
 
 
-class _DefaultState(PyroModule):
+class _DefaultState(CrModule):
     class Inputs:
         x: Tensor
         inh: Tensor
 
     class Specs:
-        out = PyroModule.OutputSpec()
-        v = PyroModule.StateSpec(shape=None)
+        out = CrModule.OutputSpec()
+        v = CrModule.StateSpec(shape=None)
 
     def _step(self, x, inh, v):
         return torch.cat([x, inh], dim=-1), v + 1
 
 
-class _UnknownShape(PyroModule):
+class _UnknownShape(CrModule):
     class Inputs:
         x: Tensor
         inh: Tensor
 
     class Specs:
-        out = PyroModule.OutputSpec()
-        v = PyroModule.StateSpec(shape="nope")
+        out = CrModule.OutputSpec()
+        v = CrModule.StateSpec(shape="nope")
 
     def _step(self, x, inh, v):
         return x + inh, v
@@ -166,27 +166,27 @@ T = 5
 
 
 def test_default_implicit_input_metadata():
-    class _Leaky(PyroModule):
+    class _Leaky(CrModule):
         class Specs:
-            out = PyroModule.OutputSpec()
-            mem = PyroModule.StateSpec()
+            out = CrModule.OutputSpec()
+            mem = CrModule.StateSpec()
 
         def _step(self, x, mem):
             return x, mem
 
-    assert _Leaky._pk_input_names == ("x",)
-    assert _Leaky._pk_primary_input_index == 0
-    assert _Leaky._pk_input_specs[0].primary
+    assert _Leaky._cr_input_names == ("x",)
+    assert _Leaky._cr_primary_input_index == 0
+    assert _Leaky._cr_input_specs[0].primary
 
     m = _Leaky()
     assert "inputs" not in repr(m)
 
 
 def test_single_input_public_api_unchanged():
-    class _Leaky(PyroModule):
+    class _Leaky(CrModule):
         class Specs:
-            out = PyroModule.OutputSpec()
-            mem = PyroModule.StateSpec()
+            out = CrModule.OutputSpec()
+            mem = CrModule.StateSpec()
 
         def _step(self, x, mem):
             return x, mem
@@ -334,11 +334,11 @@ def test_allocate_like_tuple_and_expanded():
     for alloc in ((torch.randn(B, F), torch.randn(B, G)),):
         m = _TwoInput(init_hidden=True)
         m.allocate_like(alloc)
-        assert m._pk_allocated
+        assert m._cr_allocated
 
     m = _TwoInput(init_hidden=True)
     m.allocate_like(torch.randn(B, F), torch.randn(B, G))
-    assert m._pk_allocated
+    assert m._cr_allocated
 
 
 def test_hidden_shape_mismatch_raises():
@@ -395,12 +395,12 @@ def test_shape_unknown_name_raises():
 
 
 def test_first_input_primary_by_default():
-    assert _TwoInput._pk_primary_input_index == 0
+    assert _TwoInput._cr_primary_input_index == 0
 
 
 def test_explicit_primary_works():
     m = _ExplicitPrimary()
-    assert m._pk_primary_input_index == 1
+    assert m._cr_primary_input_index == 1
 
     # shape="input" now follows the inh input.
     x, inh = _inputs()
@@ -416,42 +416,42 @@ def test_explicit_primary_works():
 def test_multiple_primary_inputs_raise():
     with pytest.raises(TypeError, match="multiple primary inputs"):
 
-        class _Bad(PyroModule):
+        class _Bad(CrModule):
             class Inputs:
-                x = PyroModule.Input(primary=True)
-                inh = PyroModule.Input(primary=True)
+                x = CrModule.Input(primary=True)
+                inh = CrModule.Input(primary=True)
 
             class Specs:
-                out = PyroModule.OutputSpec()
-                v = PyroModule.StateSpec()
+                out = CrModule.OutputSpec()
+                v = CrModule.StateSpec()
 
             def _step(self, x, inh, v):
                 return x + inh, v
 
 
 def test_input_spec_dtype_stored():
-    class _D(PyroModule):
+    class _D(CrModule):
         class Inputs:
-            x: Tensor = PyroModule.Input(dtype=float)
+            x: Tensor = CrModule.Input(dtype=float)
 
         class Specs:
-            out = PyroModule.OutputSpec()
-            v = PyroModule.StateSpec()
+            out = CrModule.OutputSpec()
+            v = CrModule.StateSpec()
 
         def _step(self, x, v):
             return x, v
 
-    assert _D._pk_input_specs[0].dtype is float
+    assert _D._cr_input_specs[0].dtype is float
 
 
 def test_input_dtype_exact_match_enforced():
-    class _D(PyroModule):
+    class _D(CrModule):
         class Inputs:
-            x: Tensor = PyroModule.Input(dtype=torch.float32)
+            x: Tensor = CrModule.Input(dtype=torch.float32)
 
         class Specs:
-            out = PyroModule.OutputSpec()
-            v = PyroModule.StateSpec()
+            out = CrModule.OutputSpec()
+            v = CrModule.StateSpec()
 
         def _step(self, x, v):
             return x, v
@@ -466,13 +466,13 @@ def test_input_dtype_exact_match_enforced():
 
 
 def test_input_dtype_python_float_enforced():
-    class _D(PyroModule):
+    class _D(CrModule):
         class Inputs:
-            x: Tensor = PyroModule.Input(dtype=float)
+            x: Tensor = CrModule.Input(dtype=float)
 
         class Specs:
-            out = PyroModule.OutputSpec()
-            v = PyroModule.StateSpec()
+            out = CrModule.OutputSpec()
+            v = CrModule.StateSpec()
 
         def _step(self, x, v):
             return x, v
@@ -487,13 +487,13 @@ def test_input_dtype_python_float_enforced():
 
 
 def test_input_dtype_python_int_enforced():
-    class _D(PyroModule):
+    class _D(CrModule):
         class Inputs:
-            x: Tensor = PyroModule.Input(dtype=int)
+            x: Tensor = CrModule.Input(dtype=int)
 
         class Specs:
-            out = PyroModule.OutputSpec()
-            v = PyroModule.StateSpec()
+            out = CrModule.OutputSpec()
+            v = CrModule.StateSpec()
 
         def _step(self, x, v):
             return x, v
@@ -619,7 +619,7 @@ def test_wrong_input_count_raises_when_validate_on():
     state = m.initial_state_like((x, _inh))
 
     with pytest.raises(ValueError, match="expects 2 input tensors"):
-        m._pk_forward_explicit((x,), state)
+        m._cr_forward_explicit((x,), state)
 
 
 def test_wrong_state_count_raises():
@@ -633,14 +633,14 @@ def test_wrong_state_count_raises():
 def test_validation_disabled_keeps_input_count_check():
     # Structural input-arity check is O(1) and stays on even when validation
     # is off (review fix #2): only per-tensor dtype/shape checks are gated.
-    class _AnyArity(PyroModule):
+    class _AnyArity(CrModule):
         class Inputs:
             x: Tensor
             inh: Tensor
 
         class Specs:
-            out = PyroModule.OutputSpec()
-            v = PyroModule.StateSpec()
+            out = CrModule.OutputSpec()
+            v = CrModule.StateSpec()
 
         def _step(self, x, inh, *extra):
             return x + inh, (extra[0] if extra else torch.zeros_like(x))
@@ -650,11 +650,11 @@ def test_validation_disabled_keeps_input_count_check():
 
     m = _AnyArity(validate=False)
     with pytest.raises(ValueError, match="expects 2 input tensors"):
-        m._pk_forward_explicit((x,), state)
+        m._cr_forward_explicit((x,), state)
 
     n = _AnyArity(validate=True)
     with pytest.raises(ValueError, match="expects 2 input tensors"):
-        n._pk_forward_explicit((x,), state)
+        n._cr_forward_explicit((x,), state)
 
 
 def test_no_validation_context_disables():
@@ -682,17 +682,17 @@ def test_fast_sequence_disables_validation():
 def test_input_collides_with_param_raises():
     with pytest.raises(TypeError, match="collide with parameter"):
 
-        class _Bad(PyroModule):
+        class _Bad(CrModule):
             class Params:
-                inh = PyroModule.Param(0.5)
+                inh = CrModule.Param(0.5)
 
             class Inputs:
                 x: Tensor
                 inh: Tensor
 
             class Specs:
-                out = PyroModule.OutputSpec()
-                v = PyroModule.StateSpec()
+                out = CrModule.OutputSpec()
+                v = CrModule.StateSpec()
 
             def _step(self, x, inh, v):
                 return x + inh, v
@@ -701,16 +701,16 @@ def test_input_collides_with_param_raises():
 def test_input_collides_with_constant_raises():
     with pytest.raises(TypeError, match="collide with constant"):
 
-        class _Bad(PyroModule):
-            dt = PyroModule.Constant(0.01, dtype=float)
+        class _Bad(CrModule):
+            dt = CrModule.Constant(0.01, dtype=float)
 
             class Inputs:
                 x: Tensor
                 dt: Tensor
 
             class Specs:
-                out = PyroModule.OutputSpec()
-                v = PyroModule.StateSpec()
+                out = CrModule.OutputSpec()
+                v = CrModule.StateSpec()
 
             def _step(self, x, dt, v):
                 return x + dt, v
@@ -719,14 +719,14 @@ def test_input_collides_with_constant_raises():
 def test_input_collides_with_output_raises():
     with pytest.raises(TypeError, match="collide with output/state"):
 
-        class _Bad(PyroModule):
+        class _Bad(CrModule):
             class Inputs:
                 x: Tensor
                 out: Tensor
 
             class Specs:
-                out = PyroModule.OutputSpec()
-                v = PyroModule.StateSpec()
+                out = CrModule.OutputSpec()
+                v = CrModule.StateSpec()
 
             def _step(self, x, out, v):
                 return x + out, v
@@ -735,14 +735,14 @@ def test_input_collides_with_output_raises():
 def test_input_collides_with_state_raises():
     with pytest.raises(TypeError, match="collide with output/state"):
 
-        class _Bad(PyroModule):
+        class _Bad(CrModule):
             class Inputs:
                 x: Tensor
                 v: Tensor
 
             class Specs:
-                out = PyroModule.OutputSpec()
-                v = PyroModule.StateSpec()
+                out = CrModule.OutputSpec()
+                v = CrModule.StateSpec()
 
             def _step(self, x, v, s):
                 return x + v, s
@@ -754,8 +754,8 @@ def _module_with_inputs(entries):
         "Specs",
         (),
         {
-            "out": PyroModule.OutputSpec(),
-            "v": PyroModule.StateSpec(),
+            "out": CrModule.OutputSpec(),
+            "v": CrModule.StateSpec(),
         },
     )
 
@@ -764,7 +764,7 @@ def _module_with_inputs(entries):
 
     return type(
         "_Dynamic",
-        (PyroModule,),
+        (CrModule,),
         {"Inputs": inputs_cls, "Specs": specs_cls, "_step": _step},
     )
 
@@ -787,15 +787,15 @@ def test_non_identifier_input_name_raises():
 def test_subclass_inherits_and_extends_inputs():
     c = _ChildInputs()
 
-    assert c._pk_input_names == ("x", "base_in", "child_in")
-    assert c._pk_primary_input_index == 0
+    assert c._cr_input_names == ("x", "base_in", "child_in")
+    assert c._cr_primary_input_index == 0
 
 
 def test_subclass_override_primary():
     c = _OverrideInputs()
 
-    assert c._pk_input_names == ("x", "base_in")
-    assert c._pk_primary_input_index == 1
+    assert c._cr_input_names == ("x", "base_in")
+    assert c._cr_primary_input_index == 1
 
 
 def test_inherited_forward_and_scan():

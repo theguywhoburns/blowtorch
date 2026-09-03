@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from pyrokinesis.snn import HH, SnnModule
+from crematorium.snn import HH, SnnModule
 
 B, F = 4, 8
 T = 50
@@ -9,9 +9,9 @@ T = 50
 
 def test_hh_declares_state_specs():
     m = HH()
-    assert len(m._pk_state_specs) == 4
-    assert not getattr(m, "_pk_reset_exprs", {})
-    assert [s.default for s in m._pk_state_specs] == [
+    assert len(m._cr_state_specs) == 4
+    assert not getattr(m, "_cr_reset_exprs", {})
+    assert [s.default for s in m._cr_state_specs] == [
         -65.0,
         0.0529,
         0.5961,
@@ -187,7 +187,7 @@ def test_hh_spike_grad_default_is_used():
 
 
 def test_hh_importable_from_snn():
-    from pyrokinesis.snn import HH as snn_HH
+    from crematorium.snn import HH as snn_HH
 
     assert snn_HH is HH
     assert HH.__mro__[1] is SnnModule

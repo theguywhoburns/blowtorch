@@ -12,7 +12,7 @@ No secrets are required — the workflow uses PyPI's trusted publishing
 ## Prerequisites (one-time)
 
 1. **Name**: the distribution name in `pyproject.toml` must be free on PyPI.
-   `pyrokinesis` is free as of 2026-09-02 (`https://pypi.org/pypi/pyrokinesis/json`
+   `crematorium` is free as of 2026-09-02 (`https://pypi.org/pypi/crematorium/json`
    404s; search only returns `pyrokinetics` typo). Confirm before first publish.
 
 2. **Trusted publishing** (no token path): on PyPI, create the project and
@@ -20,7 +20,7 @@ No secrets are required — the workflow uses PyPI's trusted publishing
    "Add a new pending publisher"):
    - Publisher: GitHub
    - Owner: `theguywhoburns`
-   - Repository: `pyrokinesis`
+   - Repository: `crematorium`
    - Workflow name: `release.yml`
 
    The same must be repeated on TestPyPI for the dry-run channel to work.

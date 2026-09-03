@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from pyrokinesis.util.spike_train import SpikeTrain
+from crematorium.util.spike_train import SpikeTrain
 
 
 def test_from_dense_roundtrip_counts():

@@ -14,7 +14,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from pyrokinesis.snn import LIF
+from crematorium.snn import LIF
 
 B, F, T = 3, 5, 6
 

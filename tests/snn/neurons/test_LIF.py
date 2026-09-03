@@ -5,8 +5,8 @@ import inspect
 import pytest
 import torch
 
-from pyrokinesis.snn import Reset, SnnModule
-from pyrokinesis.snn.neurons.LIF import LIF
+from crematorium.snn import Reset, SnnModule
+from crematorium.snn.neurons.LIF import LIF
 
 B, F = 4, 8
 T = 5
@@ -137,8 +137,8 @@ def test_lif_spike_grad_override():
 
 def test_lif_spike_grad_override_and_declarative_reset():
     lif = LIF(beta=0.5, threshold=1.0, spike_grad=lambda x: torch.ones_like(x))
-    assert lif._pk_reset_exprs[0].kind == "subtract"
-    assert lif._pk_reset_exprs[0].target == "threshold"
+    assert lif._cr_reset_exprs[0].kind == "subtract"
+    assert lif._cr_reset_exprs[0].target == "threshold"
 
     mem = torch.zeros(1)
     spk, (mem,) = lif.step_state(torch.tensor([0.1]), (mem,))

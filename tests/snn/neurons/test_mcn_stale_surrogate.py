@@ -17,8 +17,8 @@ import sys
 
 import torch
 
-from pyrokinesis.snn import MCN
-from pyrokinesis.util import atan_surrogate
+from crematorium.snn import MCN
+from crematorium.util import atan_surrogate
 
 TAU_L0 = 4.0     # construction-time value, baked into the closure
 TAU_L_NOW = 8.0  # post-training value

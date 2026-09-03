@@ -1,6 +1,6 @@
 import pytest
 
-from pyrokinesis import get_validation, set_validation
+from crematorium import get_validation, set_validation
 
 
 @pytest.fixture(autouse=True)

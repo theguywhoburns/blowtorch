@@ -24,8 +24,8 @@ used as given; learnable params are updated by an optimizer and need the
 constraint enforced to stay in the valid region.
 
 ```python
-from pyrokinesis import clamp_positive, clamp_unit_interval
-from pyrokinesis.snn import SnnModule
+from crematorium import clamp_positive, clamp_unit_interval
+from crematorium.snn import SnnModule
 
 class LIF(SnnModule):
     class Params:
@@ -72,7 +72,7 @@ param still bypasses it.
 ## Hot path
 
 Constraints are resolved through a per-instance frozen map at init
-(`_pk_param_constraint_map`): one dict lookup plus one attribute lookup per
+(`_cr_param_constraint_map`): one dict lookup plus one attribute lookup per
 requested parameter, no metadata resolution on the step path. The same
 frozen constraints back reset targets, so constrained values stay
 consistent between the step math and the reset math.

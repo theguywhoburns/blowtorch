@@ -3,8 +3,8 @@ from __future__ import annotations
 import pytest
 import torch
 
-from pyrokinesis import clamp_positive
-from pyrokinesis.snn import AdEx, SnnModule
+from crematorium import clamp_positive
+from crematorium.snn import AdEx, SnnModule
 
 B, F = 4, 8
 T = 5
@@ -48,10 +48,10 @@ class _AdExReference(SnnModule):
 
 def test_adex_declares_multi_state_resets():
     m = AdEx()
-    assert m._pk_reset_exprs[0].kind == "set"
-    assert m._pk_reset_exprs[0].target == "V_reset"
-    assert m._pk_reset_exprs[1].kind == "add"
-    assert m._pk_reset_exprs[1].target == "b"
+    assert m._cr_reset_exprs[0].kind == "set"
+    assert m._cr_reset_exprs[0].target == "V_reset"
+    assert m._cr_reset_exprs[1].kind == "add"
+    assert m._cr_reset_exprs[1].target == "b"
 
 
 def test_adex_reset_semantics_match_reference():

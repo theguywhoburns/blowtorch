@@ -9,7 +9,7 @@ The **caller owns the state**. The module is a pure function of
 `(x, *state)` - no hidden buffers, nothing mutated between calls.
 
 ```python
-from pyrokinesis.snn import LIF
+from crematorium.snn import LIF
 
 lif = LIF()
 

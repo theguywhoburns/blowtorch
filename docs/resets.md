@@ -1,9 +1,9 @@
 # Resets
 
 Resets are a strictly **SNN** feature: only `SnnModule` subclasses may declare
-them. The base `PyroModule` is a pure state-threading engine and makes no
+them. The base `CrModule` is a pure state-threading engine and makes no
 assumptions about spikes or resets; `SnnModule` contributes a
-`_pk_hook_post__rst` entry to the frozen post-step chain, which applies
+`_cr_hook_post__rst` entry to the frozen post-step chain, which applies
 resets to the pre-reset state returned by `_step`.
 
 Resets are declared per-state in `Specs` via the `Reset` factory. They run
@@ -60,4 +60,4 @@ construction time.
   is exact for binary spikes but leaves float spikes partially intact;
   `hard_zero()` masks unconditionally and works for any spike values.
 - The reset expression is code-generated once at init by `SnnModule`
-  (`_pk_apply_resets`), so applying resets costs nothing at step time.
+  (`_cr_apply_resets`), so applying resets costs nothing at step time.

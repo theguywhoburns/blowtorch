@@ -1,6 +1,6 @@
 """Tests for Sequential container mutation: __delitem__, __setitem__, _layers setter.
 
-Covers hidden-mode buffer lifecycle (orphaned buffers purged, _pk_allocated
+Covers hidden-mode buffer lifecycle (orphaned buffers purged, _cr_allocated
 reset on state-name change) and _modules bookkeeping (no orphaned children).
 """
 
@@ -10,8 +10,8 @@ import pytest
 import torch
 import torch.nn as nn
 
-from pyrokinesis.nn import Sequential
-from pyrokinesis.snn import AdEx, LIF
+from crematorium.nn import Sequential
+from crematorium.snn import AdEx, LIF
 
 
 # ---------------------------------------------------------------------------
@@ -22,28 +22,28 @@ from pyrokinesis.snn import AdEx, LIF
 def test_delitem_hidden_purges_orphaned_buffers():
     """After deleting a layer in hidden mode, orphaned buffers and
     _non_persistent_buffers_set entries must be removed, and
-    _pk_allocated must reset to False."""
+    _cr_allocated must reset to False."""
     torch.manual_seed(0)
     net = Sequential(LIF(), LIF(), init_hidden=True)
     net.forward(torch.randn(3, 4))  # allocate + populate buffers
 
     # Record the buffer names before deletion
-    old_state_names = list(net._pk_state_names)
+    old_state_names = list(net._cr_state_names)
     assert len(old_state_names) == 2  # l0_mem, l1_mem
 
     del net[0]
 
     # State registry rebuilt: only l0_mem remains
-    assert net._pk_state_names == ("l0_mem",)
+    assert net._cr_state_names == ("l0_mem",)
 
     # Orphaned buffer name must be gone
     for name in old_state_names:
-        if name not in net._pk_state_names:
+        if name not in net._cr_state_names:
             assert name not in net._buffers
             assert name not in net._non_persistent_buffers_set
 
-    # _pk_allocated must be False so the next forward re-allocates
-    assert net._pk_allocated is False
+    # _cr_allocated must be False so the next forward re-allocates
+    assert net._cr_allocated is False
 
 
 def test_delitem_hidden_state_correct_after_delete():
@@ -60,13 +60,13 @@ def test_delitem_hidden_state_correct_after_delete():
     _ = net._buffers["l1_mem"]
 
     del net[0]
-    # _pk_allocated is False → forward will re-allocate
-    assert net._pk_allocated is False
+    # _cr_allocated is False → forward will re-allocate
+    assert net._cr_allocated is False
 
     # Same batch shape → forward must not crash
     out2 = net.forward(x)
     assert out2.shape == (3, 4)
-    assert net._pk_allocated is True
+    assert net._cr_allocated is True
 
     # The single surviving layer should produce deterministic output
     # (spikes are binary, output is valid)
@@ -110,44 +110,44 @@ def test_delitem_explicit_no_state_corruption():
 
 def test_setitem_state_arity_change_reallocates():
     """Replacing LIF (1 state) with AdEx (2 states) must reset
-    _pk_allocated so the new states get allocated on next forward."""
+    _cr_allocated so the new states get allocated on next forward."""
     torch.manual_seed(0)
     net = Sequential(LIF(), init_hidden=True)
     net.forward(torch.randn(3, 4))  # allocate
-    assert net._pk_allocated is True
-    assert net._pk_state_names == ("l0_mem",)
+    assert net._cr_allocated is True
+    assert net._cr_state_names == ("l0_mem",)
 
     net[0] = AdEx()
 
     # Registry rebuilt: 2 states now
-    assert net._pk_state_names == ("l0_mem", "l0_adapt")
-    assert net._pk_allocated is False
+    assert net._cr_state_names == ("l0_mem", "l0_adapt")
+    assert net._cr_allocated is False
 
     # Forward must not crash — new state gets allocated
     out = net.forward(torch.randn(3, 4))
     assert out.shape == (3, 4)
-    assert net._pk_allocated is True
+    assert net._cr_allocated is True
 
 
 def test_setitem_same_arity_no_reset():
     """Replacing LIF with another LIF (same arity) must rebuild the
-    registry but NOT reset _pk_allocated — existing buffers are valid
+    registry but NOT reset _cr_allocated — existing buffers are valid
     for the same state names. Forward must work."""
     torch.manual_seed(0)
     net = Sequential(LIF(), init_hidden=True)
     net.forward(torch.randn(3, 4))
-    assert net._pk_allocated is True
+    assert net._cr_allocated is True
 
     # Replace with a new LIF (same arity = 1 state)
     net[0] = LIF(beta=0.5)
-    assert net._pk_state_names == ("l0_mem",)
+    assert net._cr_state_names == ("l0_mem",)
 
-    # State names unchanged → _pk_allocated stays True (buffers still valid)
-    assert net._pk_allocated is True
+    # State names unchanged → _cr_allocated stays True (buffers still valid)
+    assert net._cr_allocated is True
 
     out = net.forward(torch.randn(3, 4))
     assert out.shape == (3, 4)
-    assert net._pk_allocated is True
+    assert net._cr_allocated is True
 
 
 def test_setattr_layer_arity_change_reallocates():
@@ -159,12 +159,12 @@ def test_setattr_layer_arity_change_reallocates():
 
     net.layer0 = AdEx()
 
-    assert net._pk_state_names == ("l0_mem", "l0_adapt")
-    assert net._pk_allocated is False
+    assert net._cr_state_names == ("l0_mem", "l0_adapt")
+    assert net._cr_allocated is False
 
     out = net.forward(torch.randn(3, 4))
     assert out.shape == (3, 4)
-    assert net._pk_allocated is True
+    assert net._cr_allocated is True
 
 
 # ---------------------------------------------------------------------------

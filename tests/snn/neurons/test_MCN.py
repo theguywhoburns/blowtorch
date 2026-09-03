@@ -6,8 +6,8 @@ from itertools import pairwise
 import pytest
 import torch
 
-from pyrokinesis.snn.neurons.MCN import MCN
-from pyrokinesis.util import atan_surrogate, default_spike_grad
+from crematorium.snn.neurons.MCN import MCN
+from crematorium.util import atan_surrogate, default_spike_grad
 
 B, F = 4, 8
 
@@ -26,8 +26,8 @@ def test_mcn_fig3f_parameter_defaults():
 
 def test_mcn_multi_input_metadata():
     m = MCN()
-    assert m._pk_input_names == ("x_b", "x_a")
-    assert m._pk_primary_input_index == 0
+    assert m._cr_input_names == ("x_b", "x_a")
+    assert m._cr_primary_input_index == 0
 
     state = m.initial_state_like((torch.randn(2, 3), torch.randn(2, 7)))
     assert state[0].shape == (2, 3)

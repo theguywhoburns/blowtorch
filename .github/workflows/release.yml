@@ -6,7 +6,7 @@ name: release
 # GitHub OIDC (trusted publishing). Before the first release, register this
 # repo as a publisher on PyPI once (PyPI -> project -> Publishing ->
 # "Add a new pending publisher": GitHub, owner `theguywhoburns`, repo
-# `pyrokinesis`, workflow `release.yml`). A `PYPI_TOKEN` secret is honored as a
+# `crematorium`, workflow `release.yml`). A `PYPI_TOKEN` secret is honored as a
 # fallback if preferred.
 #
 # Pre-release tags (e.g. `v0.1.0rc1`) additionally dry-run to TestPyPI.

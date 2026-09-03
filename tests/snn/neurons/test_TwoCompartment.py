@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from pyrokinesis.snn.neurons.TwoCompartment import TwoCompartment
+from crematorium.snn.neurons.TwoCompartment import TwoCompartment
 
 B, F = 4, 8
 
