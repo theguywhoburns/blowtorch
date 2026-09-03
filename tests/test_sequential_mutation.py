@@ -6,6 +6,7 @@ reset on state-name change) and _modules bookkeeping (no orphaned children).
 
 from __future__ import annotations
 
+import pytest
 import torch
 import torch.nn as nn
 
@@ -221,6 +222,29 @@ def test_setitem_negative_index_replaces_last():
     assert sorted(net._modules) == ["layer0", "layer1"]
     assert isinstance(net.layer1, nn.Linear)
     assert sum(p.numel() for p in net.parameters()) == 2 * (4 * 4 + 4)
+
+
+def test_setattr_out_of_range_raises():
+    """net.layer5 = ... must raise, not register a ghost module that the
+    optimizer trains but _step never uses."""
+    net = Sequential(nn.Linear(4, 4), LIF())
+
+    with pytest.raises(IndexError, match="out of range"):
+        net.layer5 = nn.Linear(4, 4)
+    with pytest.raises(TypeError, match=r"nn\.Module"):
+        net.layer5 = "not a module"
+
+    assert sorted(net._modules) == ["layer0", "layer1"]
+    assert len(list(net.parameters())) == 4
+
+
+def test_compiled_sequence_t0_raises_value_error():
+    """T=0 on the hidden compiled path must raise the same clean ValueError
+    as the eager path, not AttributeError on a missing buffer."""
+    net = Sequential(LIF(), LIF(), init_hidden=True)
+    net.fast_sequence_()
+    with pytest.raises(ValueError, match="at least one timestep"):
+        net.forward_sequence(torch.randn(0, 2, 4))
 
 
 def test_layers_setter_state_dict_correct():

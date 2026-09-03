@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import inspect
 from dataclasses import FrozenInstanceError
 
@@ -1787,3 +1788,32 @@ def test_constrained_dict_matches_constrain_by_name():
 
     # Constraints are applied by name too (beta clamps to [0, 1]).
     assert (named["beta"] >= 0).all() and (named["beta"] <= 1).all()
+
+
+def test_deepcopy_drops_compiled_scan():
+    # _pk_compiled_sequence closes over the original module; without this
+    # the copy would silently run the original's dynamics.
+    m = LIF(beta=0.9)
+    m.fast_sequence_()
+    assert m._pk_compiled_sequence is not None
+
+    c = copy.deepcopy(m)
+    assert c._pk_compiled_sequence is None
+
+    c.beta.data.fill_(0.1)
+    x = torch.randn(5, 2, 4)
+    got = c.forward_sequence(x, c.initial_state_for_sequence(x))
+
+    ref = LIF(beta=0.1)
+    exp = ref.forward_sequence(x, ref.initial_state_for_sequence(x))
+    assert torch.equal(got[0], exp[0])
+    assert torch.equal(got[1], exp[1])
+
+
+def test_copy_drops_compiled_scan_but_shares_params():
+    m = LIF(beta=0.9)
+    m.fast_sequence_()
+
+    c = copy.copy(m)
+    assert c._pk_compiled_sequence is None
+    assert c.beta is m.beta

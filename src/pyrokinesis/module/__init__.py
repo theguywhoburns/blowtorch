@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Callable, ClassVar, Optional
+from typing import Any, Callable, ClassVar, Optional, Self
 
 import torch.nn as nn
 
@@ -269,3 +269,33 @@ class PyroModule(
         self._pk_constraints: tuple[Constraint, ...] = tuple(constraint_fns)
         _pk_install_constrained(self)
         self._pk_process_spec_extensions()
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> Self:
+        """
+        Deepcopy everything except the compiled scan.
+
+        ``_pk_compiled_sequence`` is a closure over the original module;
+        functions are atomic under ``copy.deepcopy``, so without this the
+        copy would silently route its compiled path through the original's
+        dynamics. The copy recompiles lazily on the next
+        ``compile_sequence_scan()`` / ``fast_sequence_()`` call.
+        """
+        from copy import deepcopy
+
+        cls = type(self)
+        new = cls.__new__(cls)
+        memo[id(self)] = new
+        new.__dict__.update(deepcopy(self.__dict__, memo))
+        new._pk_compiled_sequence = None
+        return new
+
+    def __copy__(self) -> Self:
+        """
+        Shallow-copy, but drop the compiled scan (same reason as
+        ``__deepcopy__``: the closure binds the original module).
+        """
+        cls = type(self)
+        new = cls.__new__(cls)
+        new.__dict__.update(self.__dict__)
+        new._pk_compiled_sequence = None
+        return new

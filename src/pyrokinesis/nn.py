@@ -180,17 +180,21 @@ class Sequential(PyroModule):
             self.__dict__["_pk_allocated"] = False
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if name.startswith("layer") and name[5:].isdigit() and "_layers" in self.__dict__:
+        if name.startswith("layer") and name[5:].lstrip("-").isdigit() and "_layers" in self.__dict__:
+            if not isinstance(value, nn.Module):
+                raise TypeError(f"Sequential layer must be nn.Module, got {type(value).__name__}")
             idx = int(name[5:])
             layers = self.__dict__["_layers"]
-            if 0 <= idx < len(layers) and layers[idx] is not value:
-                if not isinstance(value, nn.Module):
-                    raise TypeError(f"Sequential layer {idx} must be nn.Module, got {type(value).__name__}")
+            if idx < 0:
+                idx += len(layers)
+            if not 0 <= idx < len(layers):
+                raise IndexError(f"Sequential layer index out of range: {name}")
+            if layers[idx] is not value:
                 if isinstance(value, PyroModule) and value.init_hidden:
                     raise ValueError(f"stateful layer {type(value).__name__} is in init_hidden=True mode; Sequential owns state")
                 layers[idx] = value
                 self._pk_rebuild_state_registry()
-            super().__setattr__(name, value)
+            super().__setattr__(f"layer{idx}", value)
             return
         if name == "_layers" and "_layers" in self.__dict__:
             super().__setattr__(name, value)
@@ -509,6 +513,11 @@ class Sequential(PyroModule):
             state: Optional[tuple[Tensor, ...]] = None,
         ) -> Tensor | StepOutput:
             inputs_seq = self._pk_canonicalize_input_sequence(x_seq)
+
+            if inputs_seq[0].shape[0] == 0:
+                raise ValueError(
+                    f"{type(self).__name__}.forward_sequence expects at least one timestep"
+                )
 
             if self.init_hidden:
                 if inputs_seq[0].shape[0] > 0:

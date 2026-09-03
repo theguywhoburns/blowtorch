@@ -36,6 +36,8 @@ class SpikeTrain:
     the class handles the rest.
     """
 
+    _INTEGER_DTYPES = (torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64)
+
     def __init__(
         self,
         spk_ind: Tensor,
@@ -47,6 +49,11 @@ class SpikeTrain:
             raise ValueError(
                 f"time_pointer must have shape (T+1,) = ({shape[0] + 1},), "
                 f"got {tuple(time_pointer.shape)}"
+            )
+        if dtype not in self._INTEGER_DTYPES:
+            raise ValueError(
+                f"SpikeTrain dtype must be an integer type, got {dtype} "
+                f"(dense trains are integer count tensors)"
             )
         self.spk_ind = spk_ind
         self.time_pointer = time_pointer
@@ -277,7 +284,7 @@ class SpikeTrain:
         )
 
         if self.num_spikes:
-            grid.index_add_(0, self.spk_ind, torch.ones_like(self.spk_ind))
+            grid.index_add_(0, self.spk_ind, torch.ones_like(self.spk_ind, dtype=self.dtype))
 
         return grid.reshape(self.shape)
 
@@ -317,7 +324,7 @@ class SpikeTrain:
 
         if hi > lo:
             local = self.spk_ind[lo:hi] - t * self.batch * D
-            grid.index_add_(0, local, torch.ones_like(local))
+            grid.index_add_(0, local, torch.ones_like(local, dtype=self.dtype))
 
         return grid.reshape(self.shape[1:])
 

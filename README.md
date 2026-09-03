@@ -127,6 +127,16 @@ for epoch in range(100):
 See [examples/sequence_training.ipynb](examples/sequence_training.ipynb) for a
 complete worked example.
 
+> **Hidden-mode training:** in `init_hidden=True` the state buffers retain
+> the autograd graph after `forward_sequence`. For chunked BPTT, call
+> `net.detach()` between chunks — it carries the state values forward while
+> cutting the graph, so each chunk backprops on its own (truncated BPTT).
+> Without it, the second `backward()` fails with "backward through the graph
+> a second time". Cost is ~1µs per call (view creation, no copy, no kernel)
+> against milliseconds per training step — not a thing to worry about, and
+> it frees the retained graph memory. Explicit mode (above) is stateless
+> across calls and needs nothing.
+
 ## Defining a neuron
 
 Subclass `SnnModule`, declare `Params` and `Specs`, and implement `_step`:
@@ -179,9 +189,9 @@ Key pieces:
 - **Validation** - `validate=True` (default) checks step arity and state
   shapes on each call; override per module, or globally with
   `set_validation()` / `no_validation()`. Cost is ~10-20% in eager mode
-  (a few O(1) checks per step) and ~zero compiled (they trace away) —
-  and pyrokinesis stays faster than snnTorch/Norse on every row with
-  validation on (see the bench tables below).
+  (a few O(1) checks per step) and ~zero compiled (they trace away).
+  Rule of thumb: disable validation only for long-running, stable training
+  runs, where you are sure NOTHING will change and everything will be stable.
 - **Long sequences** - the compiled scan is a fully unrolled T-step graph, so
   compilation cost and memory grow with T (fast up to ~T=1000, impractical
   past ~T=3000). Chunk the input for very long sequences, or tune the eager

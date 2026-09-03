@@ -276,3 +276,17 @@ def test_repr_and_len():
     assert len(train) == 4
     assert "SpikeTrain" in repr(train)
     assert "spikes=" in repr(train)
+
+def test_non_integer_dtype_rejected_at_construction():
+    base = SpikeTrain.latency(torch.tensor([[0.5, 0.5]]), T=4)
+    with pytest.raises(ValueError, match="integer"):
+        SpikeTrain(base.spk_ind, base.time_pointer, base.shape, dtype=torch.float32)
+
+
+def test_int32_dtype_roundtrips():
+    base = SpikeTrain.latency(torch.tensor([[0.5, 0.5]]), T=4)
+    train = SpikeTrain(base.spk_ind, base.time_pointer, base.shape, dtype=torch.int32)
+    dense = train.to_dense()
+    assert dense.dtype == torch.int32
+    assert torch.equal(dense, base.to_dense().to(torch.int32))
+    assert train[0].dtype == torch.int32
