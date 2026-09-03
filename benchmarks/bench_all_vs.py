@@ -40,9 +40,16 @@ def parse_args() -> argparse.Namespace:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    p.add_argument("--steps", type=int, default=1000, help="timesteps per run (default 1000)")
+    p.add_argument(
+        "--steps", type=int, default=1000, help="timesteps per run (default 1000)"
+    )
     p.add_argument("--batch", type=int, default=32)
-    p.add_argument("--features", type=int, default=1024, help="feature dim; compile pays off at >=512")
+    p.add_argument(
+        "--features",
+        type=int,
+        default=1024,
+        help="feature dim; compile pays off at >=512",
+    )
     p.add_argument("--reps", type=int, default=7)
     p.add_argument("--warmup", type=int, default=3)
     p.add_argument("--seed", type=int, default=0)
@@ -56,9 +63,7 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-
 # Timing
-
 
 
 def _sync(device: torch.device) -> None:
@@ -88,9 +93,7 @@ def timeit(fn, device: torch.device, warmup: int, reps: int) -> tuple[float, flo
     return best, peak
 
 
-
 # crematorium LIF
-
 
 
 def pk_sequence(x: torch.Tensor, device: torch.device, hidden: bool, compiled: bool):
@@ -119,6 +122,7 @@ def pk_step(x: torch.Tensor, device: torch.device, hidden: bool, compiled: bool)
         cell = m
 
     if hidden:
+
         def run():
             with torch.no_grad():
                 for t in range(steps):
@@ -135,9 +139,7 @@ def pk_step(x: torch.Tensor, device: torch.device, hidden: bool, compiled: bool)
     return run
 
 
-
 # snnTorch / Norse
-
 
 
 def snn_run(x: torch.Tensor, device: torch.device, compiled: bool):
@@ -203,9 +205,7 @@ def _norse_params():
     )
 
 
-
 # Measuring and report
-
 
 
 def measure(make, device: torch.device, warmup: int, reps: int):
@@ -220,7 +220,9 @@ def measure(make, device: torch.device, warmup: int, reps: int):
         return None
 
 
-def report(label: str, best: float, peak: float, steps: int, base: float | None = None) -> None:
+def report(
+    label: str, best: float, peak: float, steps: int, base: float | None = None
+) -> None:
     line = f"{label:<40} {best * 1e3:>10.3f} ms  {steps / best:>11,.0f} steps/s  {peak:>7.1f} MiB"
     if base is not None:
         line += f"  {best / base:>6.2f}x"
@@ -244,17 +246,59 @@ def main() -> None:
 
     print(f"device={device}  batch={batch}  features={features}  steps={steps}")
     print(f"exporting to {path}")
-    print("(compile happens lazily during warmup; only steady-state run time is reported)")
+    print(
+        "(compile happens lazily during warmup; only steady-state run time is reported)"
+    )
 
     crematorium_rows = [
-        ("crematorium LIF", "seq hidden", False, lambda: pk_sequence(x, device, True, False)),
-        ("crematorium LIF", "seq hidden", True, lambda: pk_sequence(x, device, True, True)),
-        ("crematorium LIF", "seq explicit", False, lambda: pk_sequence(x, device, False, False)),
-        ("crematorium LIF", "seq explicit", True, lambda: pk_sequence(x, device, False, True)),
-        ("crematorium LIF", "step hidden", False, lambda: pk_step(x, device, True, False)),
-        ("crematorium LIF", "step hidden", True, lambda: pk_step(x, device, True, True)),
-        ("crematorium LIF", "step explicit", False, lambda: pk_step(x, device, False, False)),
-        ("crematorium LIF", "step explicit", True, lambda: pk_step(x, device, False, True)),
+        (
+            "crematorium LIF",
+            "seq hidden",
+            False,
+            lambda: pk_sequence(x, device, True, False),
+        ),
+        (
+            "crematorium LIF",
+            "seq hidden",
+            True,
+            lambda: pk_sequence(x, device, True, True),
+        ),
+        (
+            "crematorium LIF",
+            "seq explicit",
+            False,
+            lambda: pk_sequence(x, device, False, False),
+        ),
+        (
+            "crematorium LIF",
+            "seq explicit",
+            True,
+            lambda: pk_sequence(x, device, False, True),
+        ),
+        (
+            "crematorium LIF",
+            "step hidden",
+            False,
+            lambda: pk_step(x, device, True, False),
+        ),
+        (
+            "crematorium LIF",
+            "step hidden",
+            True,
+            lambda: pk_step(x, device, True, True),
+        ),
+        (
+            "crematorium LIF",
+            "step explicit",
+            False,
+            lambda: pk_step(x, device, False, False),
+        ),
+        (
+            "crematorium LIF",
+            "step explicit",
+            True,
+            lambda: pk_step(x, device, False, True),
+        ),
     ]
 
     other_rows = [
@@ -283,7 +327,13 @@ def main() -> None:
                 base = best
             report(label, best, peak, steps)
             writer.writerow(
-                [name, variant, str(compiled), f"{best * 1000 / steps:.6f}", f"{steps / best:.0f}"]
+                [
+                    name,
+                    variant,
+                    str(compiled),
+                    f"{best * 1000 / steps:.6f}",
+                    f"{steps / best:.0f}",
+                ]
             )
 
         print("\n[ snnTorch / Norse ]")
@@ -296,7 +346,13 @@ def main() -> None:
             best, peak = res
             report(label, best, peak, steps, base)
             writer.writerow(
-                [name, variant, str(compiled), f"{best * 1000 / steps:.6f}", f"{steps / best:.0f}"]
+                [
+                    name,
+                    variant,
+                    str(compiled),
+                    f"{best * 1000 / steps:.6f}",
+                    f"{steps / best:.0f}",
+                ]
             )
 
 

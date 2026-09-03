@@ -27,6 +27,7 @@ constraint enforced to stay in the valid region.
 from crematorium import clamp_positive, clamp_unit_interval
 from crematorium.snn import SnnModule
 
+
 class LIF(SnnModule):
     class Params:
         beta = SnnModule.Param(0.9, constraint=clamp_unit_interval)
@@ -51,8 +52,8 @@ Every `Param` gets three constructor kwargs:
 ```python
 lif = LIF(
     beta=0.5,
-    learnable_beta=True,                 # train beta
-    beta_constraint=clamp_unit_interval, # keep it in [0, 1]
+    learnable_beta=True,  # train beta
+    beta_constraint=clamp_unit_interval,  # keep it in [0, 1]
 )
 ```
 

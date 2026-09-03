@@ -34,10 +34,7 @@ class _AdExReference(SnnModule):
         delta_T = self.constrain("delta_T")
         a = self.constrain("a")
         dv = (
-            -(mem - V_rest)
-            + delta_T * torch.exp((mem - V_T) / delta_T)
-            - adapt
-            + x
+            -(mem - V_rest) + delta_T * torch.exp((mem - V_T) / delta_T) - adapt + x
         ) / tau_m
         dw = (a * (mem - V_rest) - adapt) / tau_w
         mem = mem + dv
@@ -75,10 +72,7 @@ def test_adex_reset_semantics_match_reference():
     for t in range(T):
         x = x_seq[t]
         dv = (
-            -(mem - V_rest)
-            + delta_T * torch.exp((mem - V_T) / delta_T)
-            - adapt
-            + x
+            -(mem - V_rest) + delta_T * torch.exp((mem - V_T) / delta_T) - adapt + x
         ) / tau_m
         dw = (a * (mem - V_rest) - adapt) / tau_w
         mem = mem + dv

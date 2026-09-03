@@ -37,7 +37,9 @@ def _store_hidden_seq_buffers(
 ) -> None:
     for name, t in zip(host._cr_state_names, tail, strict=True):
         host._buffers[name] = t
-    for name, spec, t in zip(host._cr_output_names, host._cr_output_specs, ys, strict=True):
+    for name, spec, t in zip(
+        host._cr_output_names, host._cr_output_specs, ys, strict=True
+    ):
         # Output buffers are created here on first store and must be
         # non-persistent (hidden contents travel via get_extra_state).
         host._non_persistent_buffers_set.add(name)
@@ -46,7 +48,9 @@ def _store_hidden_seq_buffers(
 
 # In eager scans, batch this many steps into a single index_copy_ scatter so
 # peak memory stays at input + output (no per-step (B, F) list held for stack).
-_SEQUENCE_SCAN_CHUNK_CTX: ContextVar[int] = ContextVar("_SEQUENCE_SCAN_CHUNK", default=8)
+_SEQUENCE_SCAN_CHUNK_CTX: ContextVar[int] = ContextVar(
+    "_SEQUENCE_SCAN_CHUNK", default=8
+)
 # Back-compat for ``from .scan import _SEQUENCE_SCAN_CHUNK``
 _SEQUENCE_SCAN_CHUNK = 8
 
@@ -474,9 +478,9 @@ class SequenceScanMixin(ForwardMixin):
         buffers. Pass them only on explicit-mode (``init_hidden=False``)
         modules, where outputs are cloned under graph modes.
         """
-        if (
-            self.init_hidden
-            and compile_kwargs.get("mode") in ("reduce-overhead", "max-autotune")
+        if self.init_hidden and compile_kwargs.get("mode") in (
+            "reduce-overhead",
+            "max-autotune",
         ):
             raise ValueError(
                 f"{type(self).__name__}.fast_sequence_(mode="

@@ -98,9 +98,7 @@ def build_params(
             try:
                 spec.validate(value)
             except ValueError as exc:
-                raise ValueError(
-                    f"{type(module).__name__} {name}: {exc}"
-                ) from None
+                raise ValueError(f"{type(module).__name__} {name}: {exc}") from None
 
         if isinstance(spec.dtype, type):
             try:
@@ -151,9 +149,7 @@ def _cr_install_constrained(module: CrModule) -> None:
 
     module._cr_param_constraint_map = {
         name: None if constraint is identity else constraint
-        for name, constraint in zip(
-            param_names, module._cr_constraints, strict=True
-        )
+        for name, constraint in zip(param_names, module._cr_constraints, strict=True)
     }
 
 
@@ -165,6 +161,5 @@ def remaining_kwargs_error(
     Build the leftover-kwarg TypeError with the exact message users expect.
     """
     return TypeError(
-        f"{type(module).__name__} got unexpected keyword arguments: "
-        f"{sorted(kwargs)}"
+        f"{type(module).__name__} got unexpected keyword arguments: {sorted(kwargs)}"
     )

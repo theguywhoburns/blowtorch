@@ -51,7 +51,7 @@ class _Leaky(CrModule):
     def _step(self, x, mem):
         beta = self.constrain("beta")
         mem = beta * mem + x
-        return mem, mem          # (out, next_mem)
+        return mem, mem  # (out, next_mem)
 
 
 class _TwoOut(CrModule):
@@ -79,7 +79,7 @@ class _WrongCount(CrModule):
         s2 = CrModule.StateSpec()
 
     def _step(self, x, s1, s2):
-        return x, x              # wrong: only 2
+        return x, x  # wrong: only 2
 
 
 class _NoTuple(CrModule):
@@ -90,7 +90,7 @@ class _NoTuple(CrModule):
         s = CrModule.StateSpec()
 
     def _step(self, x, s):
-        return x                 # wrong: not a tuple
+        return x  # wrong: not a tuple
 
 
 class _TypedInput(CrModule):
@@ -1336,8 +1336,10 @@ def test_compile_reduce_overhead_state_none_correct_and_held_survives():
     torch.manual_seed(0)
     x_seq = torch.randn(T, B, F, device="cuda")
 
-    compiled = _Leaky(init_hidden=False).to("cuda").compile_sequence_scan(
-        mode="reduce-overhead"
+    compiled = (
+        _Leaky(init_hidden=False)
+        .to("cuda")
+        .compile_sequence_scan(mode="reduce-overhead")
     )
     eager = _Leaky(init_hidden=False).to("cuda")
 
@@ -1721,6 +1723,7 @@ def test_generic_rnn_forward_sequence_works():
     m = _PlainRNN(init_hidden=True)
     out = m.forward_sequence(torch.randn(T, B, F))
     assert out.shape == (T, B, F)
+
 
 # ----------------------------------------------------------------------
 # I. Review fixes: graph-mode guard, state-only alloc, constrained_dict

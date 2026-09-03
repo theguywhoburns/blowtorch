@@ -132,7 +132,9 @@ class SpikeTrain:
         total count over ``T`` steps is ``rate * dt * T``.
         """
         if rate.dim() < 1:
-            raise ValueError(f"rate must be at least (B,), got shape {tuple(rate.shape)}")
+            raise ValueError(
+                f"rate must be at least (B,), got shape {tuple(rate.shape)}"
+            )
 
         if T < 1:
             raise ValueError(f"T must be >= 1, got {T}")
@@ -161,7 +163,9 @@ class SpikeTrain:
         never fires when ``v = 0``.
         """
         if value.dim() < 1:
-            raise ValueError(f"value must be at least (B,), got shape {tuple(value.shape)}")
+            raise ValueError(
+                f"value must be at least (B,), got shape {tuple(value.shape)}"
+            )
 
         if T < 1:
             raise ValueError(f"T must be >= 1, got {T}")
@@ -284,7 +288,9 @@ class SpikeTrain:
         )
 
         if self.num_spikes:
-            grid.index_add_(0, self.spk_ind, torch.ones_like(self.spk_ind, dtype=self.dtype))
+            grid.index_add_(
+                0, self.spk_ind, torch.ones_like(self.spk_ind, dtype=self.dtype)
+            )
 
         return grid.reshape(self.shape)
 

@@ -35,30 +35,41 @@ print("dense counts per step:", [int(pop[t].sum()) for t in range(pop.T)])
 section("poisson (constant rate)")
 rate = torch.full((4, 8), 0.1, device=DEVICE)
 pois = SpikeTrain.poisson(rate, T=1000, dt=1.0, seed=0)
-print(f"shape={pois.shape}  spikes={pois.num_spikes}  "
-      f"mean rate={pois.num_spikes / (1000 * 4 * 8):.3f} (expect ~0.1)")
+print(
+    f"shape={pois.shape}  spikes={pois.num_spikes}  "
+    f"mean rate={pois.num_spikes / (1000 * 4 * 8):.3f} (expect ~0.1)"
+)
 
 section("latency-to-first-spike")
 values = torch.tensor([[0.0, 0.5, 1.0]], device=DEVICE)
 lat = SpikeTrain.latency(values, T=16)
-print(f"shape={lat.shape}  first-spike times={[int(t) for t in lat.tensor.argmax(0).flatten()]}")
+print(
+    f"shape={lat.shape}  first-spike times={[int(t) for t in lat.tensor.argmax(0).flatten()]}"
+)
 print("(v=0 never fires, v=1 fires at t=0, v=0.5 fires at t=round(7.5)=8)")
 
 section("custom encoder (packing handled for you)")
+
+
 def delta_encoder(values: torch.Tensor, T: int) -> torch.Tensor:
     """One spike at the last step for every unit."""
     dense = torch.zeros(T, *values.shape, dtype=torch.int64)
     dense[-1] = 1
     return dense
 
+
 custom = SpikeTrain.custom(delta_encoder, torch.rand(4, 4, device=DEVICE), T=16)
-print(f"shape={custom.shape}  spikes={custom.num_spikes}  all at t=15: "
-      f"{bool((custom[15] == 1).all())}")
+print(
+    f"shape={custom.shape}  spikes={custom.num_spikes}  all at t=15: "
+    f"{bool((custom[15] == 1).all())}"
+)
 
 section("packed view: only the events are stored")
 spk_ind, time_pointer = pop.packed
-print(f"spk_ind={tuple(spk_ind.shape)}  time_pointer={tuple(time_pointer.shape)}  "
-      f"vs dense cells={pop.shape[0] * pop.shape[1] * pop.shape[2] * pop.shape[3]}")
+print(
+    f"spk_ind={tuple(spk_ind.shape)}  time_pointer={tuple(time_pointer.shape)}  "
+    f"vs dense cells={pop.shape[0] * pop.shape[1] * pop.shape[2] * pop.shape[3]}"
+)
 assert torch.equal(pop.to_dense(), SpikeTrain.from_dense(pop.to_dense()).to_dense())
 
 section("iteration feeds a Sequential step loop (no dense tensor kept)")

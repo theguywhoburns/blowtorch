@@ -193,6 +193,4 @@ class ForwardMixin(StateMixin):
         return self.step_state(inputs, state)
 
     def _step(self, x: Tensor, *state: Tensor) -> StepOutput:
-        raise NotImplementedError(
-            f"{type(self).__name__} must implement _step()"
-        )
+        raise NotImplementedError(f"{type(self).__name__} must implement _step()")

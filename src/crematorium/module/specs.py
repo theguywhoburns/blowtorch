@@ -150,6 +150,7 @@ class ConstantSpec:
     Unlike ``Param``, a constant is never registered as an ``nn.Parameter``;
     it is exposed as a plain attribute and constructor kwarg.
     """
+
     default: Any = None
     validate: Optional[Callable[[Any], None]] = None
     dtype: Any = None
@@ -224,6 +225,7 @@ class InputSpec:
     device/dtype. ``dtype`` is stored as validation metadata only; it is not
     used to cast inputs.
     """
+
     primary: bool = False
     dtype: Any = None
 
@@ -260,6 +262,7 @@ class OutputSpec:
     into a hidden-mode buffer; returned values keep the autograd graph
     so surrogate gradients can flow through them.
     """
+
     default: float | Callable[[nn.Module], float] = 0.0
     differentiable: bool = True
 
@@ -284,6 +287,7 @@ class StateSpec:
     `None` behaves identically to "input" (the state follows the primary input
     shape); there is no scalar-shaped state convention.
     """
+
     default: float | Callable[[nn.Module], float] = 0.0
     differentiable: bool = True
     shape: str | tuple[int, ...] | None = "input"

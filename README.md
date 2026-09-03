@@ -39,6 +39,7 @@ Subclass `SnnModule`, declare `Params` and `Specs`, implement `_step`:
 from crematorium import clamp_positive, clamp_unit_interval
 from crematorium.snn import Reset, SnnModule
 
+
 class MyLIF(SnnModule):
     class Params:
         beta = SnnModule.Param(0.9, constraint=clamp_unit_interval)
@@ -107,7 +108,7 @@ Hidden mode (the module owns its state buffers):
 
 ```python
 lif = LIF(init_hidden=True)
-spikes = lif.forward_sequence(x)   # state lives in module buffers
+spikes = lif.forward_sequence(x)  # state lives in module buffers
 ```
 
 Compiled scan (compiles the whole sequence into one graph):
@@ -142,7 +143,7 @@ for epoch in range(100):
 
     x = torch.randn(T, B, F)
     spikes, _ = lif.forward_sequence(x, lif.zero_state((B, F)))
-    rate = spikes.mean(dim=(0, 2))              # mean firing rate per sample
+    rate = spikes.mean(dim=(0, 2))  # mean firing rate per sample
 
     target = torch.where(x.mean(dim=(0, 2)) > 0, 1.0, 0.0)
     loss = torch.nn.functional.mse_loss(rate, target)
@@ -287,4 +288,4 @@ uv run ruff check        # lint (rules: E, F, B, RUF; see pyproject.toml)
 - Tests: pytest. Type-checking: pyright covers `src/` only (the declarative
   `Param()` is `Any`-typed by design, so the tests/benchmarks surface
   produces ~300 noise diagnostics; see the `exclude` in `[tool.pyright]`).
-- Formatting: intentionally not auto-formatted; don't send format-only PRs.
+- Formatting: `ruff format` (run `uv run ruff format .` before committing).

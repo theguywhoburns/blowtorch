@@ -26,12 +26,8 @@ __all__ = ["Sequential"]
 _SEQUENTIAL_SIG = inspect.Signature(
     [
         inspect.Parameter("layers", inspect.Parameter.VAR_POSITIONAL),
-        inspect.Parameter(
-            "init_hidden", inspect.Parameter.KEYWORD_ONLY, default=False
-        ),
-        inspect.Parameter(
-            "validate", inspect.Parameter.KEYWORD_ONLY, default=None
-        ),
+        inspect.Parameter("init_hidden", inspect.Parameter.KEYWORD_ONLY, default=False),
+        inspect.Parameter("validate", inspect.Parameter.KEYWORD_ONLY, default=None),
     ]
 )
 
@@ -145,9 +141,15 @@ class Sequential(CrModule):
         # via object.__setattr__ to avoid a second ignore on the assignment.
         object.__setattr__(self, "_cr_output_names", ("y",))
         object.__setattr__(self, "_cr_output_specs", (output_spec,))
-        object.__setattr__(self, "_cr_state_names", tuple(name for name, _ in state_entries))
-        object.__setattr__(self, "_cr_state_specs", tuple(spec for _, spec in state_entries))
-        object.__setattr__(self, "_cr_spec_entries", (("y", output_spec), *state_entries))
+        object.__setattr__(
+            self, "_cr_state_names", tuple(name for name, _ in state_entries)
+        )
+        object.__setattr__(
+            self, "_cr_state_specs", tuple(spec for _, spec in state_entries)
+        )
+        object.__setattr__(
+            self, "_cr_spec_entries", (("y", output_spec), *state_entries)
+        )
 
     def _cr_rebuild_state_registry(self) -> None:
         old_state_names = self.__dict__.get("_cr_state_names", ())
@@ -157,7 +159,12 @@ class Sequential(CrModule):
                 for name, spec in layer._cr_spec_entries:
                     if isinstance(spec, StateSpec):
                         state_entries.append(
-                            (f"l{i}_{name}", StateSpec(default=layer._cr_resolve_default(spec.default)))
+                            (
+                                f"l{i}_{name}",
+                                StateSpec(
+                                    default=layer._cr_resolve_default(spec.default)
+                                ),
+                            )
                         )
         out_spec = self._cr_output_specs[0] if self._cr_output_specs else OutputSpec()
         new_state_names = tuple(n for n, _ in state_entries)
@@ -180,9 +187,15 @@ class Sequential(CrModule):
             self.__dict__["_cr_allocated"] = False
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if name.startswith("layer") and name[5:].lstrip("-").isdigit() and "_layers" in self.__dict__:
+        if (
+            name.startswith("layer")
+            and name[5:].lstrip("-").isdigit()
+            and "_layers" in self.__dict__
+        ):
             if not isinstance(value, nn.Module):
-                raise TypeError(f"Sequential layer must be nn.Module, got {type(value).__name__}")
+                raise TypeError(
+                    f"Sequential layer must be nn.Module, got {type(value).__name__}"
+                )
             idx = int(name[5:])
             layers = self.__dict__["_layers"]
             if idx < 0:
@@ -191,7 +204,9 @@ class Sequential(CrModule):
                 raise IndexError(f"Sequential layer index out of range: {name}")
             if layers[idx] is not value:
                 if isinstance(value, CrModule) and value.init_hidden:
-                    raise ValueError(f"stateful layer {type(value).__name__} is in init_hidden=True mode; Sequential owns state")
+                    raise ValueError(
+                        f"stateful layer {type(value).__name__} is in init_hidden=True mode; Sequential owns state"
+                    )
                 layers[idx] = value
                 self._cr_rebuild_state_registry()
             super().__setattr__(f"layer{idx}", value)
@@ -201,8 +216,11 @@ class Sequential(CrModule):
             # Children live in _modules, not __dict__: iterate _modules to
             # correctly deregister stale layer{i>len-1} entries.
             for key in [
-                k for k in list(self._modules)
-                if k.startswith("layer") and k[5:].isdigit() and int(k[5:]) >= len(value)
+                k
+                for k in list(self._modules)
+                if k.startswith("layer")
+                and k[5:].isdigit()
+                and int(k[5:]) >= len(value)
             ]:
                 try:
                     super().__delattr__(key)
@@ -215,11 +233,17 @@ class Sequential(CrModule):
         super().__setattr__(name, value)
 
     def __delattr__(self, name: str) -> None:
-        if name.startswith("layer") and name[5:].isdigit() and "_layers" in self.__dict__:
+        if (
+            name.startswith("layer")
+            and name[5:].isdigit()
+            and "_layers" in self.__dict__
+        ):
             idx = int(name[5:])
             layers = self.__dict__["_layers"]
             if 0 <= idx < len(layers):
-                raise AttributeError(f"Sequential layer {idx} cannot be deleted via delattr; use del net[{idx}]")
+                raise AttributeError(
+                    f"Sequential layer {idx} cannot be deleted via delattr; use del net[{idx}]"
+                )
         super().__delattr__(name)
 
     def __setitem__(self, idx: int, value: nn.Module) -> None:
@@ -231,7 +255,9 @@ class Sequential(CrModule):
         if not isinstance(value, nn.Module):
             raise TypeError(f"Sequential layer {idx} must be nn.Module")
         if isinstance(value, CrModule) and value.init_hidden:
-            raise ValueError(f"stateful layer {type(value).__name__} is init_hidden=True")
+            raise ValueError(
+                f"stateful layer {type(value).__name__} is init_hidden=True"
+            )
         self._layers[idx] = value
         nn.Module.__setattr__(self, f"layer{idx}", value)  # type: ignore[attr-defined]
         self._cr_rebuild_state_registry()
@@ -251,8 +277,7 @@ class Sequential(CrModule):
         # re-register remaining layers under correct indices (children live
         # in _modules, not __dict__)
         for key in [
-            k for k in list(self._modules)
-            if k.startswith("layer") and k[5:].isdigit()
+            k for k in list(self._modules) if k.startswith("layer") and k[5:].isdigit()
         ]:
             try:
                 super().__delattr__(key)
@@ -356,7 +381,11 @@ class Sequential(CrModule):
                     ) from exc
                 except RuntimeError as exc:
                     msg = str(exc)
-                    if "scalar" in msg.lower() or "item()" in msg or "fake" in msg.lower():
+                    if (
+                        "scalar" in msg.lower()
+                        or "item()" in msg
+                        or "fake" in msg.lower()
+                    ):
                         raise RuntimeError(
                             f"{type(self).__name__} shape probe failed on layer {type(layer).__name__}: "
                             f"_step branched on tensor data or used Tensor.item() with fake tensors; "
@@ -378,8 +407,7 @@ class Sequential(CrModule):
         # a layer replacement or weight resize without an explicit setattr.
         topo = tuple(id(layer) for layer in self._layers)
         param_shapes = tuple(
-            tuple(tuple(p.shape) for p in layer.parameters())
-            for layer in self._layers
+            tuple(tuple(p.shape) for p in layer.parameters()) for layer in self._layers
         )
         key = (tuple(x.shape), x.dtype, topo, param_shapes)
         cache = self.__dict__.get("_cr_probe_cache")
@@ -419,7 +447,9 @@ class Sequential(CrModule):
     # State factories. These override StateMixin's: container state shapes are
     # resolved by the shape walk, not from ``StateSpec.shape``/``batch_shape``.
 
-    def _cr_seq_shapes_for_batch(self, batch_shape: tuple[int, ...], dtype: Optional[torch.dtype]) -> list[tuple[int, ...]]:
+    def _cr_seq_shapes_for_batch(
+        self, batch_shape: tuple[int, ...], dtype: Optional[torch.dtype]
+    ) -> list[tuple[int, ...]]:
         _, shapes = self._cr_probe(tuple(batch_shape), dtype)
         return shapes
 
@@ -430,11 +460,22 @@ class Sequential(CrModule):
         dtype: Optional[torch.dtype],
         fill: str,
     ) -> tuple[Tensor, ...]:
-        dtype = dtype if dtype is None or dtype.is_floating_point else torch.get_default_dtype()
+        dtype = (
+            dtype
+            if dtype is None or dtype.is_floating_point
+            else torch.get_default_dtype()
+        )
         out: list[Tensor] = []
         for shape, spec in zip(shapes, self._cr_state_specs, strict=True):
             if fill == "full":
-                out.append(torch.full(shape, self._cr_resolve_default(spec.default), device=device, dtype=dtype))
+                out.append(
+                    torch.full(
+                        shape,
+                        self._cr_resolve_default(spec.default),
+                        device=device,
+                        dtype=dtype,
+                    )
+                )
             else:
                 out.append(torch.zeros(shape, device=device, dtype=dtype))
         return tuple(out)
@@ -445,7 +486,9 @@ class Sequential(CrModule):
         device: Optional[torch.device] = None,
         dtype: Optional[torch.dtype] = None,
     ) -> tuple[Tensor, ...]:
-        return self._cr_seq_state(self._cr_seq_shapes_for_batch(batch_shape, dtype), device, dtype, "full")
+        return self._cr_seq_state(
+            self._cr_seq_shapes_for_batch(batch_shape, dtype), device, dtype, "full"
+        )
 
     def zero_state(
         self,
@@ -453,7 +496,9 @@ class Sequential(CrModule):
         device: Optional[torch.device] = None,
         dtype: Optional[torch.dtype] = None,
     ) -> tuple[Tensor, ...]:
-        return self._cr_seq_state(self._cr_seq_shapes_for_batch(batch_shape, dtype), device, dtype, "zero")
+        return self._cr_seq_state(
+            self._cr_seq_shapes_for_batch(batch_shape, dtype), device, dtype, "zero"
+        )
 
     def initial_state_like(
         self,
@@ -462,7 +507,9 @@ class Sequential(CrModule):
     ) -> tuple[Tensor, ...]:
         inputs = self._cr_canonicalize_inputs(inputs)
         primary = inputs[self._cr_primary_input_index]
-        dtype = primary.dtype if primary.is_floating_point() else torch.get_default_dtype()
+        dtype = (
+            primary.dtype if primary.is_floating_point() else torch.get_default_dtype()
+        )
         _, shapes = self._cr_probe_shapes(primary)
         shapes = [tuple(batch_shape) if batch_shape is not None else s for s in shapes]
         return self._cr_seq_state(shapes, primary.device, dtype, "full")
@@ -474,7 +521,9 @@ class Sequential(CrModule):
     ) -> tuple[Tensor, ...]:
         inputs = self._cr_canonicalize_inputs(inputs)
         primary = inputs[self._cr_primary_input_index]
-        dtype = primary.dtype if primary.is_floating_point() else torch.get_default_dtype()
+        dtype = (
+            primary.dtype if primary.is_floating_point() else torch.get_default_dtype()
+        )
         _, shapes = self._cr_probe_shapes(primary)
         shapes = [tuple(batch_shape) if batch_shape is not None else s for s in shapes]
         return self._cr_seq_state(shapes, primary.device, dtype, "zero")

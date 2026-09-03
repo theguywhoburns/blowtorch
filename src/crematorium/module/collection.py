@@ -117,7 +117,8 @@ def collect_inputs(cls: type[CrModule]) -> tuple[tuple[str, InputSpec], ...]:
             # Only check the current Inputs class, not the accumulated MRO dict.
             ann_only = [n for n in scope_annotations if n not in vars_]
             val_only = [
-                n for n, v in vars_.items()
+                n
+                for n, v in vars_.items()
                 if n not in scope_annotations and isinstance(v, InputSpec)
             ]
             if ann_only and val_only:
@@ -182,17 +183,11 @@ def collect_metadata(cls: type[CrModule]) -> None:
     cls._cr_spec_entries = collect_specs(cls)
 
     cls._cr_input_entries = collect_inputs(cls)
-    cls._cr_input_names = tuple(
-        name for name, _ in cls._cr_input_entries
-    )
-    cls._cr_input_specs = tuple(
-        spec for _, spec in cls._cr_input_entries
-    )
+    cls._cr_input_names = tuple(name for name, _ in cls._cr_input_entries)
+    cls._cr_input_specs = tuple(spec for _, spec in cls._cr_input_entries)
 
     primary_indices = [
-        i
-        for i, (_, spec) in enumerate(cls._cr_input_entries)
-        if spec.primary
+        i for i, (_, spec) in enumerate(cls._cr_input_entries) if spec.primary
     ]
 
     if len(primary_indices) > 1:
@@ -207,27 +202,19 @@ def collect_metadata(cls: type[CrModule]) -> None:
     check_input_namespace_collisions(cls)
 
     cls._cr_output_names = tuple(
-        name
-        for name, spec in cls._cr_spec_entries
-        if isinstance(spec, OutputSpec)
+        name for name, spec in cls._cr_spec_entries if isinstance(spec, OutputSpec)
     )
 
     cls._cr_state_names = tuple(
-        name
-        for name, spec in cls._cr_spec_entries
-        if isinstance(spec, StateSpec)
+        name for name, spec in cls._cr_spec_entries if isinstance(spec, StateSpec)
     )
 
     cls._cr_output_specs = tuple(
-        spec
-        for _, spec in cls._cr_spec_entries
-        if isinstance(spec, OutputSpec)
+        spec for _, spec in cls._cr_spec_entries if isinstance(spec, OutputSpec)
     )
 
     cls._cr_state_specs = tuple(
-        spec
-        for _, spec in cls._cr_spec_entries
-        if isinstance(spec, StateSpec)
+        spec for _, spec in cls._cr_spec_entries if isinstance(spec, StateSpec)
     )
 
     seen_state = False
@@ -276,7 +263,11 @@ def generate_signature(cls: type[CrModule]) -> None:
     ]
 
     for name, spec in cls._cr_param_specs.items():
-        ann = spec.dtype if spec.dtype is not None else cls._cr_param_annotations.get(name, Any)
+        ann = (
+            spec.dtype
+            if spec.dtype is not None
+            else cls._cr_param_annotations.get(name, Any)
+        )
 
         # Runtime honesty: a Param is stored as an nn.Parameter regardless of
         # the declared ``dtype=``. Advertising the bare declared type here

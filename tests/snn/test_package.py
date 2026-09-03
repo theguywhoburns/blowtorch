@@ -14,7 +14,6 @@ def test_snn_public_exports_match_all():
         "SnnModule",
         "Reset",
         "ResetSpec",
-
         "default_spike_grad",
         "straight_through_surrogate",
         "sigmoid_surrogate",

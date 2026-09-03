@@ -29,9 +29,7 @@ class InputMixin:
         flag; they indicate a programming mistake, not a shape mismatch.
         """
         if isinstance(inputs, dict):
-            missing = [
-                name for name in self._cr_input_names if name not in inputs
-            ]
+            missing = [name for name in self._cr_input_names if name not in inputs]
 
             if missing:
                 raise ValueError(

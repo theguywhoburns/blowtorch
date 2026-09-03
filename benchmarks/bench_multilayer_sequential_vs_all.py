@@ -51,7 +51,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--steps", type=int, default=1000, help="timesteps per run")
     p.add_argument("--batch", type=int, default=32)
     p.add_argument("--features", type=int, default=512, help="hidden width F")
-    p.add_argument("--hidden", type=int, default=4, help="LIF layers between the two Linears")
+    p.add_argument(
+        "--hidden", type=int, default=4, help="LIF layers between the two Linears"
+    )
     p.add_argument("--out", type=int, default=10, help="output features")
     p.add_argument("--reps", type=int, default=7)
     p.add_argument("--warmup", type=int, default=3)
@@ -96,7 +98,9 @@ def timeit(fn, device: torch.device, warmup: int, reps: int) -> tuple[float, flo
 # crematorium Sequential
 
 
-def pk_seq(x: torch.Tensor, device: torch.device, hidden: int, out: int, compiled: bool):
+def pk_seq(
+    x: torch.Tensor, device: torch.device, hidden: int, out: int, compiled: bool
+):
     layers = [nn.Linear(x.shape[2], x.shape[2])] + [PkLIF(validate=False)] * hidden
     layers += [nn.Linear(x.shape[2], out), PkLIF(validate=False)]
     m = Sequential(*layers).to(device)
@@ -130,7 +134,9 @@ def pk_step(x: torch.Tensor, device: torch.device, hidden: int, out: int):
 # snnTorch
 
 
-def snn_run(x: torch.Tensor, device: torch.device, hidden: int, out: int, compiled: bool):
+def snn_run(
+    x: torch.Tensor, device: torch.device, hidden: int, out: int, compiled: bool
+):
     import snntorch as snn
 
     features = x.shape[2]
@@ -170,7 +176,9 @@ def snn_run(x: torch.Tensor, device: torch.device, hidden: int, out: int, compil
 # Norse
 
 
-def norse_run(x: torch.Tensor, device: torch.device, hidden: int, out: int, compiled: bool):
+def norse_run(
+    x: torch.Tensor, device: torch.device, hidden: int, out: int, compiled: bool
+):
     import norse.torch as nt
 
     def p():
@@ -207,7 +215,9 @@ def measure(make, device: torch.device, warmup: int, reps: int):
         return None
 
 
-def report(label: str, best: float, peak: float, steps: int, base: float | None = None) -> None:
+def report(
+    label: str, best: float, peak: float, steps: int, base: float | None = None
+) -> None:
     line = f"{label:<46} {best * 1e3:>10.3f} ms  {steps / best:>11,.0f} steps/s  {peak:>7.1f} MiB"
     if base is not None:
         line += f"  {best / base:>6.2f}x"
@@ -221,7 +231,13 @@ def main() -> None:
     if device.type == "cuda":
         torch.cuda.manual_seed_all(args.seed)
 
-    steps, batch, features, hidden, out = args.steps, args.batch, args.features, args.hidden, args.out
+    steps, batch, features, hidden, out = (
+        args.steps,
+        args.batch,
+        args.features,
+        args.hidden,
+        args.out,
+    )
     x = torch.randn(steps, batch, features, device=device) * 0.1
 
     out_dir = args.outdir
@@ -229,19 +245,45 @@ def main() -> None:
     stamp = datetime.now().astimezone().strftime("%Y%m%d_%H%M%S")
     path = out_dir / f"bench_multi_s{steps}_b{batch}_f{features}_h{hidden}_{stamp}.csv"
 
-    print(f"device={device}  batch={batch}  features={features}  hidden={hidden}  out={out}  steps={steps}")
-    print(f"network: Linear({features},{features}) -> LIF x{hidden} -> Linear({features},{out}) -> LIF")
+    print(
+        f"device={device}  batch={batch}  features={features}  hidden={hidden}  out={out}  steps={steps}"
+    )
+    print(
+        f"network: Linear({features},{features}) -> LIF x{hidden} -> Linear({features},{out}) -> LIF"
+    )
     print(f"exporting to {path}")
-    print("(compile happens lazily during warmup; only steady-state run time is reported)")
+    print(
+        "(compile happens lazily during warmup; only steady-state run time is reported)"
+    )
 
     crematorium_rows = [
-        ("crematorium Sequential", "seq", False, lambda: pk_seq(x, device, hidden, out, False)),
-        ("crematorium Sequential", "seq", True, lambda: pk_seq(x, device, hidden, out, True)),
-        ("crematorium Sequential", "step", False, lambda: pk_step(x, device, hidden, out)),
+        (
+            "crematorium Sequential",
+            "seq",
+            False,
+            lambda: pk_seq(x, device, hidden, out, False),
+        ),
+        (
+            "crematorium Sequential",
+            "seq",
+            True,
+            lambda: pk_seq(x, device, hidden, out, True),
+        ),
+        (
+            "crematorium Sequential",
+            "step",
+            False,
+            lambda: pk_step(x, device, hidden, out),
+        ),
     ]
 
     other_rows = [
-        ("snntorch", "step loop", False, lambda: snn_run(x, device, hidden, out, False)),
+        (
+            "snntorch",
+            "step loop",
+            False,
+            lambda: snn_run(x, device, hidden, out, False),
+        ),
         ("snntorch", "step loop", True, lambda: snn_run(x, device, hidden, out, True)),
         ("norse", "seq", False, lambda: norse_run(x, device, hidden, out, False)),
         ("norse", "seq", True, lambda: norse_run(x, device, hidden, out, True)),
@@ -264,7 +306,13 @@ def main() -> None:
                 base = best
             report(label, best, peak, steps)
             writer.writerow(
-                [name, variant, str(compiled), f"{best * 1000 / steps:.6f}", f"{steps / best:.0f}"]
+                [
+                    name,
+                    variant,
+                    str(compiled),
+                    f"{best * 1000 / steps:.6f}",
+                    f"{steps / best:.0f}",
+                ]
             )
 
         print("\n[ snnTorch / Norse ]")
@@ -277,7 +325,13 @@ def main() -> None:
             best, peak = res
             report(label, best, peak, steps, base)
             writer.writerow(
-                [name, variant, str(compiled), f"{best * 1000 / steps:.6f}", f"{steps / best:.0f}"]
+                [
+                    name,
+                    variant,
+                    str(compiled),
+                    f"{best * 1000 / steps:.6f}",
+                    f"{steps / best:.0f}",
+                ]
             )
 
 

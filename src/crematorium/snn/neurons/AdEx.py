@@ -77,10 +77,7 @@ class AdEx(SnnModule):
         a = self.constrain("a")
 
         dv = (
-            -(mem - V_rest)
-            + delta_T * self.safe_exp((mem - V_T) / delta_T)
-            - adapt
-            + x
+            -(mem - V_rest) + delta_T * self.safe_exp((mem - V_T) / delta_T) - adapt + x
         ) / tau_m
         dw = (a * (mem - V_rest) - adapt) / tau_w
         mem = mem + dv

@@ -76,6 +76,7 @@ __all__ = [
 
 # Generic crematorium module
 
+
 class CrModule(
     SequenceScanMixin,
     SerializationMixin,

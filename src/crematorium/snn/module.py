@@ -63,11 +63,7 @@ class SnnModule(ResetMixin, CrModule):
     ) -> None:
         super().__init__(**kwargs)
 
-        self.spike_grad = (
-            spike_grad
-            if spike_grad is not None
-            else default_spike_grad
-        )
+        self.spike_grad = spike_grad if spike_grad is not None else default_spike_grad
 
         # A frozen explicit surrogate silently stops tracking a learnable
         # param it was derived from (e.g. atan_surrogate(tau_L)): refuse

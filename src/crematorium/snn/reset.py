@@ -30,6 +30,7 @@ class ResetSpec:
     Produced by the ``Reset`` factory; see there for the kinds and their
     exact semantics.
     """
+
     kind: str
     target: str | ParamSpec | None = None
     custom_fn: str | Callable | None = None
@@ -106,12 +107,20 @@ class ResetHandler:
     """
 
     @staticmethod
-    def apply(module: "SnnModule", state_index: int, spec: StateSpec, reset_spec: ResetSpec) -> None:
+    def apply(
+        module: "SnnModule", state_index: int, spec: StateSpec, reset_spec: ResetSpec
+    ) -> None:
         if not hasattr(module, "_cr_reset_exprs"):
             module._cr_reset_exprs = {}
         module._cr_reset_exprs[state_index] = reset_spec
 
-    def __init__(self, module: "SnnModule", state_index: int, spec: StateSpec, reset_spec: ResetSpec) -> None:
+    def __init__(
+        self,
+        module: "SnnModule",
+        state_index: int,
+        spec: StateSpec,
+        reset_spec: ResetSpec,
+    ) -> None:
         self.apply(module, state_index, spec, reset_spec)
 
 
@@ -160,7 +169,9 @@ class ResetMixin(StateMixin):
                 if reset_spec.kind == "subtract":
                     lines.append(f"state_{i} = state_{i} - spk * {param_value}")
                 elif reset_spec.kind == "set":
-                    lines.append(f"state_{i} = (1 - spk) * state_{i} + spk * {param_value}")
+                    lines.append(
+                        f"state_{i} = (1 - spk) * state_{i} + spk * {param_value}"
+                    )
                 else:
                     lines.append(f"state_{i} = state_{i} + spk * {param_value}")
             elif reset_spec.kind == "zero":
@@ -174,16 +185,26 @@ class ResetMixin(StateMixin):
                 elif callable(fn):
                     fn_name = getattr(fn, "__name__", None)
                     if fn_name is None or fn_name == "<lambda>":
-                        raise ValueError(f"Reset.custom requires a named method or a method-name string, got {fn!r}")
+                        raise ValueError(
+                            f"Reset.custom requires a named method or a method-name string, got {fn!r}"
+                        )
                 else:
-                    raise ValueError(f"Reset.custom requires a method-name string or a named callable, got {fn!r}")
+                    raise ValueError(
+                        f"Reset.custom requires a method-name string or a named callable, got {fn!r}"
+                    )
                 target = getattr(self, fn_name, None)
                 if not callable(target):
-                    raise ValueError(f"Reset.custom target {fn_name!r} is not a method on {type(self).__name__}")
+                    raise ValueError(
+                        f"Reset.custom target {fn_name!r} is not a method on {type(self).__name__}"
+                    )
                 lines.append(f"state_{i} = self.{fn_name}(state_{i}, spk)")
             else:
                 raise ValueError(f"Unknown reset kind {reset_spec.kind!r}")
-        lines.append("return (" + ", ".join(f"state_{i}" for i in range(len(self._cr_state_specs))) + ",)")  # type: ignore[attr-defined]
+        lines.append(
+            "return ("
+            + ", ".join(f"state_{i}" for i in range(len(self._cr_state_specs)))
+            + ",)"
+        )  # type: ignore[attr-defined]
         src = "def _cr_apply_resets(self, pre_state, spk):\n    " + "\n    ".join(lines)
         cached = _CR_RESET_CACHE.get(src)
         if cached is not None:

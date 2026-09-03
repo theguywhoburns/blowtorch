@@ -119,8 +119,7 @@ exclude = ["tests", "benchmarks"]
 src = ["src", "tests", "benchmarks"]
 
 [tool.ruff.lint]
-# Repo uses hand-formatting; do NOT adopt `ruff format` (see README
-# "Development" section). These rules are the small, high-signal set:
+# These rules are the small, high-signal set:
 #   E4/E7/E9 - pycodestyle (imports, statements, runtime)
 #   F        - pyflakes (real bugs: undefined names, unused imports)
 #   B        - bugbear (likely bugs, common pitfalls)

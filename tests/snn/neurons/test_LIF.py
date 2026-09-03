@@ -96,7 +96,9 @@ def test_lif_reset_kind_subtract_default():
     mem = torch.zeros(1)
     _, (mem,) = lif.step_state(torch.tensor([1.5]), (mem,))
     assert torch.allclose(mem, torch.tensor([0.5]))
-    assert torch.allclose(torch.tensor(1.5) - torch.tensor(1.0) * torch.tensor(1.0), torch.tensor(0.5))
+    assert torch.allclose(
+        torch.tensor(1.5) - torch.tensor(1.0) * torch.tensor(1.0), torch.tensor(0.5)
+    )
 
 
 def test_lif_reset_kind_zero():
@@ -333,6 +335,7 @@ def test_lif_strong_input_stays_finite():
         spk, state = lif.step_state(torch.full((B, F), 1e6), state)
     assert torch.isfinite(state[0]).all()
     assert torch.isfinite(spk).all()
+
 
 def test_lif_matches_norse_reference():
     pytest.importorskip("norse")

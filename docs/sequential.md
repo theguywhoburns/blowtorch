@@ -40,9 +40,9 @@ of every state tensor.
 ```python
 net = Sequential(nn.Linear(4, 8), LIF(), LIF(), init_hidden=True)
 
-out = net(x)                 # (batch, 8), buffers auto-allocated
+out = net(x)  # (batch, 8), buffers auto-allocated
 spikes = net.forward_sequence(x_seq)  # (time, batch, 8)
-net.reset()                  # re-initialize buffers
+net.reset()  # re-initialize buffers
 ```
 
 The input shape must stay fixed in hidden mode; a different shape raises
@@ -54,7 +54,7 @@ The input shape must stay fixed in hidden mode; a different shape raises
 net = Sequential(nn.Linear(4, 8), LIF(), LIF())
 
 state = net.initial_state((batch, 4))
-out, next_state = net.step(x, state)          # single step
+out, next_state = net.step(x, state)  # single step
 spikes, final_state = net.forward_sequence(x_seq, state)  # time-major
 ```
 

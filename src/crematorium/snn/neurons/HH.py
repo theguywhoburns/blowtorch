@@ -114,8 +114,8 @@ class HH(SnnModule):
         cap = self.rate_cap
 
         for _ in range(self.substeps):
-            INa = gNa * (m ** 3) * h * (mem - ENa)
-            IK = gK * (n ** 4) * (mem - EK)
+            INa = gNa * (m**3) * h * (mem - ENa)
+            IK = gK * (n**4) * (mem - EK)
             IL = gL * (mem - EL)
             mem = mem + (x - INa - IK - IL) / C * dt
 

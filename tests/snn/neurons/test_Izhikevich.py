@@ -16,7 +16,7 @@ def _ref_step(m, x, v, u):
     dt = m.dt
 
     # Explicit coupling: both updates read the pre-step potentials.
-    v_new = v + (0.04 * v ** 2 + 5 * v + 140 - u + x) * dt
+    v_new = v + (0.04 * v**2 + 5 * v + 140 - u + x) * dt
     u_new = u + (a * (b * v - u)) * dt
     spk = (v_new > 30.0).to(v_new.dtype)
     v = (1 - spk) * v_new + spk * c

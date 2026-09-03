@@ -92,9 +92,7 @@ class StateMixin(InputMixin):
     def _cr_alloc_hidden(self, inputs: tuple[Tensor, ...]) -> None:
         primary = inputs[self._cr_primary_input_index]
         dtype = (
-            primary.dtype
-            if primary.is_floating_point()
-            else torch.get_default_dtype()
+            primary.dtype if primary.is_floating_point() else torch.get_default_dtype()
         )
 
         # Allocate hidden STATE buffers only. Output buffers are written by
@@ -174,7 +172,9 @@ class StateMixin(InputMixin):
             self._non_persistent_buffers_set.add(name)
             self._buffers[name] = t
 
-    def _cr_shape_for_batch(self, spec: StateSpec, batch_shape: tuple[int, ...]) -> tuple[int, ...]:
+    def _cr_shape_for_batch(
+        self, spec: StateSpec, batch_shape: tuple[int, ...]
+    ) -> tuple[int, ...]:
         if isinstance(spec.shape, str) and spec.shape != "input":
             raise ValueError(
                 f"{type(self).__name__}.initial_state cannot resolve "
@@ -193,7 +193,14 @@ class StateMixin(InputMixin):
         out: list[Tensor] = []
         for shape, spec in zip(shapes, self._cr_state_specs, strict=True):
             if fill == "full":
-                out.append(torch.full(shape, self._cr_resolve_default(spec.default), device=device, dtype=dtype))
+                out.append(
+                    torch.full(
+                        shape,
+                        self._cr_resolve_default(spec.default),
+                        device=device,
+                        dtype=dtype,
+                    )
+                )
             else:
                 out.append(torch.zeros(shape, device=device, dtype=dtype))
         return tuple(out)
@@ -214,7 +221,9 @@ class StateMixin(InputMixin):
         shaped by a named input resolve from the real input shapes.
         """
         dtype = self._cr_explicit_state_dtype(dtype)
-        shapes = [self._cr_shape_for_batch(s, batch_shape) for s in self._cr_state_specs]
+        shapes = [
+            self._cr_shape_for_batch(s, batch_shape) for s in self._cr_state_specs
+        ]
         return self._cr_build_state(shapes, device, dtype, "full")
 
     def zero_state(
@@ -230,7 +239,9 @@ class StateMixin(InputMixin):
         ``StateSpec.shape`` is an explicit tuple use that tuple instead.
         """
         dtype = self._cr_explicit_state_dtype(dtype)
-        shapes = [self._cr_shape_for_batch(s, batch_shape) for s in self._cr_state_specs]
+        shapes = [
+            self._cr_shape_for_batch(s, batch_shape) for s in self._cr_state_specs
+        ]
         return self._cr_build_state(shapes, device, dtype, "zero")
 
     def initial_state_like(
@@ -248,7 +259,9 @@ class StateMixin(InputMixin):
         primary = inputs[self._cr_primary_input_index]
         dtype = self._cr_explicit_state_dtype(primary.dtype)
         shapes = [
-            tuple(batch_shape) if batch_shape is not None else self._cr_spec_shape(s, inputs)
+            tuple(batch_shape)
+            if batch_shape is not None
+            else self._cr_spec_shape(s, inputs)
             for s in self._cr_state_specs
         ]
         return self._cr_build_state(shapes, primary.device, dtype, "full")
@@ -265,7 +278,9 @@ class StateMixin(InputMixin):
         primary = inputs[self._cr_primary_input_index]
         dtype = self._cr_explicit_state_dtype(primary.dtype)
         shapes = [
-            tuple(batch_shape) if batch_shape is not None else self._cr_spec_shape(s, inputs)
+            tuple(batch_shape)
+            if batch_shape is not None
+            else self._cr_spec_shape(s, inputs)
             for s in self._cr_state_specs
         ]
         return self._cr_build_state(shapes, primary.device, dtype, "zero")

@@ -13,12 +13,12 @@ from crematorium.snn import LIF
 
 lif = LIF()
 
-state = lif.zero_state((32, 64))          # zeroed initial state
-state = lif.initial_state((32, 64))       # Spec.default initial state
+state = lif.zero_state((32, 64))  # zeroed initial state
+state = lif.initial_state((32, 64))  # Spec.default initial state
 
-spk, (mem,) = lif.step_state(x_step, state)   # (output, next_state)
+spk, (mem,) = lif.step_state(x_step, state)  # (output, next_state)
 
-x_seq = torch.randn(1000, 32, 64)         # (time, batch, features)
+x_seq = torch.randn(1000, 32, 64)  # (time, batch, features)
 spikes, mem = lif.forward_sequence(x_seq, state)  # (output_seq, *final_state)
 ```
 
@@ -43,8 +43,8 @@ the first forward call from the input shape.
 
 ```python
 lif = LIF(init_hidden=True)
-spikes = lif.forward_sequence(x_seq)      # state lives in module buffers
-spikes, mem = lif(x_step)                 # per-step hidden forward
+spikes = lif.forward_sequence(x_seq)  # state lives in module buffers
+spikes, mem = lif(x_step)  # per-step hidden forward
 ```
 
 Key rules:

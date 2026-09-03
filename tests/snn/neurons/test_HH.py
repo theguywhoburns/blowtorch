@@ -221,8 +221,8 @@ def test_hh_matches_manual_reference():
     spks_r = []
     for t in range(T):
         for _ in range(m.substeps):
-            INa = gNa * (mm ** 3) * hh * (mem - ENa)
-            IK = gK * (nn ** 4) * (mem - EK)
+            INa = gNa * (mm**3) * hh * (mem - ENa)
+            IK = gK * (nn**4) * (mem - EK)
             IL = gL * (mem - EL)
             mem = mem + (x_seq[t] - INa - IK - IL) / C * dt
 

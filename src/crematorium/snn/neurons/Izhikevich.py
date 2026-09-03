@@ -54,7 +54,7 @@ class Izhikevich(SnnModule):
 
         # Both updates read the pre-step potentials: each state is a pure
         # function of the step inputs, independent of the other's update.
-        v_new = v + (0.04 * v ** 2 + 5 * v + 140 - u + x) * dt
+        v_new = v + (0.04 * v**2 + 5 * v + 140 - u + x) * dt
         u_new = u + (a * (b * v - u)) * dt
         spk = self.spike_grad(v_new - v_peak)
 

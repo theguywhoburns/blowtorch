@@ -13,6 +13,7 @@ FAILS on current dev (silent stale gradient).
 Run:  pytest tests/snn/neurons/test_mcn_stale_surrogate.py -q
       python tests/snn/neurons/test_mcn_stale_surrogate.py   (exit 1 if stale)
 """
+
 import sys
 
 import torch
@@ -20,9 +21,9 @@ import torch
 from crematorium.snn import MCN
 from crematorium.util import atan_surrogate
 
-TAU_L0 = 4.0     # construction-time value, baked into the closure
+TAU_L0 = 4.0  # construction-time value, baked into the closure
 TAU_L_NOW = 8.0  # post-training value
-X_VAL = 0.3      # probe point; any nonzero works
+X_VAL = 0.3  # probe point; any nonzero works
 
 
 def probe_grad(fn, x_val=X_VAL):
@@ -42,7 +43,7 @@ def surrogate_tracks_or_raises() -> bool:
     with torch.no_grad():
         mcn.tau_L.data.fill_(TAU_L_NOW)  # simulate optimizer drift
 
-    actual = probe_grad(mcn.spike_grad)          # what training actually gets
+    actual = probe_grad(mcn.spike_grad)  # what training actually gets
     live = probe_grad(atan_surrogate(TAU_L_NOW))  # what the paper wants now
 
     if torch.allclose(actual, live, atol=1e-6):

@@ -35,8 +35,7 @@ class ParamMixin:
             constraint = self._cr_param_constraint_map[name]
         except KeyError:
             raise KeyError(
-                f"unknown Param {name!r}; "
-                f"valid: {sorted(self._cr_param_specs)}"
+                f"unknown Param {name!r}; valid: {sorted(self._cr_param_specs)}"
             ) from None
         value = getattr(self, name)
         return value if constraint is None else constraint(value)

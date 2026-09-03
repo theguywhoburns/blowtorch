@@ -106,7 +106,7 @@ def test_population_mean_matches_receptive_field():
     train = SpikeTrain.population(tau, M=8, T=2000, sigma=0.15, seed=0)
     mean = train.to_dense().float().mean(dim=0)
     mu = torch.linspace(0.0, 1.0, 8)
-    rates = torch.exp(-(tau[..., None] - mu) ** 2 / (2 * 0.15**2))
+    rates = torch.exp(-((tau[..., None] - mu) ** 2) / (2 * 0.15**2))
     assert torch.allclose(mean, rates, atol=0.1)
 
 
@@ -139,10 +139,18 @@ def test_population_centers_span_unit_interval():
     tau0 = torch.zeros(1, 1)
     tau1 = torch.ones(1, 1)
     out0 = (
-        SpikeTrain.population(tau0, M=3, T=T, seed=0).to_dense().float().mean(dim=0).flatten()
+        SpikeTrain.population(tau0, M=3, T=T, seed=0)
+        .to_dense()
+        .float()
+        .mean(dim=0)
+        .flatten()
     )
     out1 = (
-        SpikeTrain.population(tau1, M=3, T=T, seed=0).to_dense().float().mean(dim=0).flatten()
+        SpikeTrain.population(tau1, M=3, T=T, seed=0)
+        .to_dense()
+        .float()
+        .mean(dim=0)
+        .flatten()
     )
     assert out0.argmax().item() == 0
     assert out1.argmax().item() == 2
@@ -276,6 +284,7 @@ def test_repr_and_len():
     assert len(train) == 4
     assert "SpikeTrain" in repr(train)
     assert "spikes=" in repr(train)
+
 
 def test_non_integer_dtype_rejected_at_construction():
     base = SpikeTrain.latency(torch.tensor([[0.5, 0.5]]), T=4)

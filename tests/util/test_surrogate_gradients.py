@@ -63,7 +63,7 @@ def test_atan_surrogate_backward_formula():
     x = torch.tensor([-0.5, 0.0, 0.5], requires_grad=True)
     atan_surrogate(beta=beta)(x).sum().backward()
     scale = math.pi / 2 * beta * x.detach()
-    expected = beta / 2 / (1 + scale ** 2)
+    expected = beta / 2 / (1 + scale**2)
     assert torch.allclose(x.grad, expected, atol=1e-6)
 
 

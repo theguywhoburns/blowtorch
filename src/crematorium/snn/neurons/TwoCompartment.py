@@ -66,12 +66,10 @@ class TwoCompartment(SnnModule):
 
         # Both updates read the pre-step potentials: each state is a pure
         # function of the step inputs, independent of the other's update.
-        v_soma_new = v_soma + (
-            gL * (EL - v_soma) + g_c * (v_dend - v_soma) + x
-        ) / C * dt
-        v_dend_new = v_dend + (
-            gL * (EL - v_dend) + g_c * (v_soma - v_dend)
-        ) / C * dt
+        v_soma_new = (
+            v_soma + (gL * (EL - v_soma) + g_c * (v_dend - v_soma) + x) / C * dt
+        )
+        v_dend_new = v_dend + (gL * (EL - v_dend) + g_c * (v_soma - v_dend)) / C * dt
         spk = self.spike_grad(v_soma_new - threshold)
 
         return spk, v_soma_new, v_dend_new

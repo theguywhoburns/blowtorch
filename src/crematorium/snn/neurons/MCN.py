@@ -39,7 +39,6 @@ class MCN(SnnModule):
     ``tau_L = 4.0``, ``gA = gB = gL = 1.0``, ``threshold = 0.8``.
     """
 
-
     class Params:
         tau_B = SnnModule.Param(
             default=2.0,

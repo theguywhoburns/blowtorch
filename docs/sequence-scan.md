@@ -5,7 +5,7 @@ the module, returning the per-step output(s) stacked along time.
 
 ```python
 spikes, mem = lif.forward_sequence(x_seq, state)  # explicit
-spikes = lif.forward_sequence(x_seq)              # hidden
+spikes = lif.forward_sequence(x_seq)  # hidden
 ```
 
 ## Eager scan
@@ -24,7 +24,7 @@ is the convenience entry point: it disables validation and installs a
 compiled scan (`mode="default"`).
 
 ```python
-lif.fast_sequence_()            # validation off + compiled scan
+lif.fast_sequence_()  # validation off + compiled scan
 spikes = lif.forward_sequence(x_seq)
 ```
 
