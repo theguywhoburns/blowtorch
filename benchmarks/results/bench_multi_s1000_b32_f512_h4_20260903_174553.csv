@@ -1,0 +1,5 @@
+name,variant,compiled,ms_per_step,steps_per_sec
+snntorch,step loop,False,0.574571,1740
+snntorch,step loop,True,0.118020,8473
+norse,seq,False,0.556985,1795
+norse,seq,True,0.025243,39615

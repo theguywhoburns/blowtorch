@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import inspect
-import threading
 from typing import Any, Optional
 
 import torch
@@ -16,11 +15,9 @@ from pyrokinesis.module import (
     Tensor,
     sequence_scan,
 )
-from pyrokinesis.module.scan import _store_hidden_seq_buffers
+from pyrokinesis.module.mixins.scan import _store_hidden_seq_buffers
 
 __all__ = ["Sequential"]
-
-_PK_PROBE_LOCK = threading.Lock()
 
 
 class Sequential(PyroModule):
@@ -41,7 +38,8 @@ class Sequential(PyroModule):
     in non-persistent buffers named ``l{layer_index}_{state_name}`` (e.g.
     ``l0_mem``), and scans, compiled scans, validation, and serialization all
     come from the base mixins. State shapes are not declared: they are
-    resolved from the layer stack by a meta shape walk (``_pk_spec_shape``).
+    resolved from the layer stack by a fake-tensor shape walk
+    (``_pk_spec_shape``).
     """
 
     # Container metadata is built per instance in __init__; the class-level
@@ -194,6 +192,11 @@ class Sequential(PyroModule):
             idx += n
         if not 0 <= idx < n:
             raise IndexError(idx)
+        # Validate before mutating: a rejected del must leave _layers, the
+        # layer{i} registrations, and the state registry untouched, not brick
+        # the module half-way through the operation.
+        if n == 1:
+            raise ValueError("Sequential requires at least one layer")
         old_len = n
         del self._layers[idx]
         # re-register remaining layers under correct indices
@@ -206,8 +209,6 @@ class Sequential(PyroModule):
         for i, layer in enumerate(self._layers):
             nn.Module.__setattr__(self, f"layer{i}", layer)  # type: ignore[attr-defined]
         # _modules already updated via __delattr__/__setattr__; rebuild registry
-        if len(self._layers) == 0:
-            raise ValueError("Sequential requires at least one layer")
         self._pk_rebuild_state_registry()
         # remove stale layer{old_len-1} if any remains in _modules
         try:
@@ -250,69 +251,72 @@ class Sequential(PyroModule):
 
         return (x, *next_states)
 
-    # Shape pass: meta-device walk.
+    # Shape pass: FakeTensorMode walk.
 
     def _pk_probe(
         self,
         batch_shape: tuple[int, ...],
         dtype: Optional[torch.dtype],
     ) -> tuple[tuple[int, ...], list[tuple[int, ...]]]:
-        # Stateless layers like nn.Linear have matrix parameters on the real
-        # device; a meta input rejects them. Temporarily move every param and
-        # buffer to meta for the shape walk, then restore them untouched.
-        # RNG is forked so stochastic _step doesn't bleed into the global stream.
-        saved: list[tuple[nn.Module, str, str, Any]] = []
+        # Run the stack under FakeTensorMode with a fake input: real params
+        # and buffers are viewed as fake tensors for the walk, so there is
+        # nothing to swap, nothing to restore, and no shared state to lock.
+        # Only shapes are read from the results.
+        # Imported lazily: private torch module, and the probe is cached per
+        # shape so the per-call import cost is a one-time dict lookup.
+        from torch._subclasses.fake_tensor import (  # pyright: ignore[reportMissingImports]
+            DataDependentOutputException,
+            FakeTensorMode,
+        )
 
-        with _PK_PROBE_LOCK:
-            with torch.random.fork_rng():
+        with FakeTensorMode(allow_non_fake_inputs=True):
+            # Walk device must match the stack's real params/buffers: fake
+            # conversion keeps their device, and ops like linear reject
+            # mixed-device inputs (elementwise LIF math tolerates them, so
+            # bare-neuron stacks never noticed). Read-only scan, no data.
+            probe_device = torch.device("cpu")
+            for module in self.modules():
+                for t in (*module._parameters.values(), *module._buffers.values()):
+                    if isinstance(t, Tensor):
+                        probe_device = t.device
+                        break
+                if probe_device.type != "cpu":
+                    break
+            x = torch.empty(batch_shape, dtype=dtype, device=probe_device)
+            shapes: list[tuple[int, ...]] = []
+
+            for layer in self._layers:
                 try:
-                    for module in self.modules():
-                        for name, param in list(module._parameters.items()):
-                            if param is not None:
-                                saved.append((module, "_parameters", name, param))
-                                module._parameters[name] = nn.Parameter(
-                                    param.to(device="meta"),
-                                    requires_grad=param.requires_grad,
-                                )
-                        for name, buf in list(module._buffers.items()):
-                            if buf is not None:
-                                saved.append((module, "_buffers", name, buf))
-                                module._buffers[name] = buf.to(device="meta")
-
-                    x = torch.empty(batch_shape, device="meta", dtype=dtype)
-                    shapes: list[tuple[int, ...]] = []
-
-                    for layer in self._layers:
-                        try:
-                            if isinstance(layer, PyroModule):
-                                state = layer.initial_state(
-                                    tuple(x.shape),
-                                    device=torch.device("meta"),
-                                    dtype=dtype,
-                                )
-                                out = layer.forward(x, *state)
-                                assert isinstance(out, tuple)
-                                x = out[0]
-                                shapes.extend(tuple(t.shape) for t in out[1:])
-                            else:
-                                x = layer(x)
-                                if not isinstance(x, Tensor):
-                                    raise TypeError(  # pyright: ignore[reportUnreachable]
-                                        f"stateless layer {type(layer).__name__} in "
-                                        f"Sequential must return a single tensor"
-                                    )
-                        except RuntimeError as exc:
-                            msg = str(exc)
-                            if "meta" in msg or "Tensor.item" in msg:
-                                raise RuntimeError(
-                                    f"{type(self).__name__} shape probe failed on layer {type(layer).__name__}: "
-                                    f"_step branched on tensor data or used Tensor.item() with meta tensors; "
-                                    f"keep _step shape-safe (no data-dependent Python control flow)"
-                                ) from exc
-                            raise
-                finally:
-                    for module, kind, name, tensor in saved:
-                        getattr(module, kind)[name] = tensor
+                    if isinstance(layer, PyroModule):
+                        state = layer.initial_state(
+                            tuple(x.shape), device=probe_device, dtype=dtype
+                        )
+                        out = layer.forward(x, *state)
+                        assert isinstance(out, tuple)
+                        x = out[0]
+                        shapes.extend(tuple(t.shape) for t in out[1:])
+                    else:
+                        x = layer(x)
+                        if not isinstance(x, Tensor):
+                            raise TypeError(  # pyright: ignore[reportUnreachable]
+                                f"stateless layer {type(layer).__name__} in "
+                                f"Sequential must return a single tensor"
+                            )
+                except DataDependentOutputException as exc:
+                    raise RuntimeError(
+                        f"{type(self).__name__} shape probe failed on layer {type(layer).__name__}: "
+                        f"_step branched on tensor data or used Tensor.item() with fake tensors; "
+                        f"keep _step shape-safe (no data-dependent Python control flow)"
+                    ) from exc
+                except RuntimeError as exc:
+                    msg = str(exc)
+                    if "scalar" in msg.lower() or "item()" in msg or "fake" in msg.lower():
+                        raise RuntimeError(
+                            f"{type(self).__name__} shape probe failed on layer {type(layer).__name__}: "
+                            f"_step branched on tensor data or used Tensor.item() with fake tensors; "
+                            f"keep _step shape-safe (no data-dependent Python control flow)"
+                        ) from exc
+                    raise
 
         return tuple(x.shape), shapes
 
@@ -430,11 +434,23 @@ class Sequential(PyroModule):
         return self._pk_seq_state(shapes, primary.device, dtype, "zero")
 
     # Compile path. State resolution stays outside the compiled region: the
-    # shape walk temporarily swaps submodule params to meta, which would break
-    # inside a ``torch.compile`` trace.
+    # shape walk runs under FakeTensorMode, which would break inside a
+    # ``torch.compile`` trace.
 
     def compile_sequence_scan(self, **kwargs: Any) -> "Sequential":
         needs_clone = kwargs.get("mode") in ("reduce-overhead", "max-autotune")
+
+        if self.init_hidden and needs_clone:
+            raise ValueError(
+                f"{type(self).__name__}.compile_sequence_scan(mode="
+                f"{kwargs.get('mode')!r}) is not supported with "
+                f"init_hidden=True: the compiled graph owns its output "
+                f"tensors, and storing them into the container's hidden "
+                f"buffers would alias compiler-recycled CUDA-graph memory. "
+                f"Use mode='default', or run the layers in explicit mode "
+                f"(init_hidden=False) if you need CUDA graphs."
+            )
+
         n_outputs = len(self._pk_output_names)
         compiled = torch.compile(
             lambda inputs_seq, state: sequence_scan(

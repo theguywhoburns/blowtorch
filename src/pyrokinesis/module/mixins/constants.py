@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, ClassVar
 
-from .specs import ConstantSpec
+from ..specs import ConstantSpec
 
 
 class ConstantMixin:

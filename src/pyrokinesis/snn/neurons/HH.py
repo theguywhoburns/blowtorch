@@ -102,7 +102,12 @@ class HH(SnnModule):
         h: Tensor,
         n: Tensor,
     ) -> StepOutput:
-        gNa, gK, gL, ENa, EK, EL, C, threshold = self.constrained()
+        # Name-based access: inserting a Param must not shift values into the
+        # wrong variable (positional unpacking is load-bearing otherwise).
+        p = self.constrained_named()
+        gNa, gK, gL = p["gNa"], p["gK"], p["gL"]
+        ENa, EK, EL = p["ENa"], p["EK"], p["EL"]
+        C, threshold = p["C"], p["threshold"]
         dt = self.dt / self.substeps
         cap = self.rate_cap
 

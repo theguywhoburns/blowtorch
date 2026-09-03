@@ -109,6 +109,12 @@ def Param(
     makes the assigned attribute a ``float`` for static type checkers.
     Returns Any otherwise.
 
+    Runtime note: at runtime the attribute is an ``nn.Parameter`` (a tensor
+    scalar), not a Python ``float``. The ``dtype=`` argument exists so user
+    code like ``self.beta * x`` type-checks against plain number literals;
+    the generated ``__signature__`` advertises ``float | Tensor`` to keep
+    help() honest about this.
+
     Constraints apply only to learnable parameters: a fixed (non-learnable)
     param is used raw in ``constrained()`` / resets, while a learnable one has
     its constraint applied on the hot path.

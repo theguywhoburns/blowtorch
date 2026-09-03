@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from typing import ClassVar, Optional
+from typing import Any, Callable, ClassVar, Optional
 
 import torch
 
-from .specs import (
+from ..specs import (
     InputSpec,
     InputTensor,
     Spec,
@@ -12,6 +12,7 @@ from .specs import (
     StepOutput,
     Tensor,
 )
+from .states import StateMixin
 from .validation import (
     check_hidden_input_shape,
     check_input_dtypes,
@@ -19,12 +20,12 @@ from .validation import (
     is_validating,
 )
 
-# The per-timestep forward path and loop conveniences. Host members used below
-# but owned by earlier mixins are declared as type-only stubs; PyroModule's
-# MRO (this mixin sits after their owners) resolves the real implementations.
+# The per-timestep forward path and loop conveniences. Depends on StateMixin
+# (shapes, alloc, stores, canonicalization); callers depend on this mixin
+# for _pk_fwd_explicit instead of redeclaring it as a stub.
 
 
-class ForwardMixin:
+class ForwardMixin(StateMixin):
     init_hidden: bool
     size: Optional[int]
     _pk_allocated: bool
@@ -36,17 +37,7 @@ class ForwardMixin:
     _pk_input_specs: ClassVar[tuple[InputSpec, ...]]
     _pk_spec_entries: ClassVar[tuple[tuple[str, Spec], ...]]
     _buffers: dict[str, Optional[Tensor]]
-
-    def _pk_spec_shape(self, spec: Spec, inputs: tuple[Tensor, ...]) -> tuple[int, ...]: ...
-
-    def _pk_canonicalize_inputs(
-        self,
-        inputs: InputTensor,
-    ) -> tuple[Tensor, ...]: ...
-
-    def _pk_alloc_hidden(self, inputs: tuple[Tensor, ...]) -> None: ...
-
-    def _pk_store_hidden_outputs(self, out: StepOutput) -> None: ...
+    _pk_hook_post_steps: ClassVar[tuple[Callable[..., Any], ...]]
 
     @staticmethod
     def safe_exp(t: Tensor) -> Tensor:
@@ -90,13 +81,17 @@ class ForwardMixin:
 
     def _pk_post_step(self, out: StepOutput) -> StepOutput:
         """
-        Hook applied to the raw output of ``_step`` before it is returned or
-        stored.
+        Driver applied to the raw output of ``_step`` before it is returned
+        or stored.
 
-        Base modules return the output unchanged. Subclasses (e.g.
-        ``SnnModule``) override this to apply domain-specific transformations
-        such as per-state resets.
+        Runs the frozen ``_pk_hook_post__*`` chain (base-first, collected
+        once per class in ``PyroModule.__init_subclass__``); empty for plain
+        modules, so this is a single tuple iteration with no per-call
+        ``super()``/``getattr`` resolution and nothing for Dynamo to choke
+        on. Domain mixins (e.g. ``ResetMixin``) contribute bare transforms.
         """
+        for fn in self._pk_hook_post_steps:
+            out = fn(self, out)
         return out
 
     def _pk_forward_explicit(
@@ -104,28 +99,36 @@ class ForwardMixin:
         inputs: tuple[Tensor, ...],
         state: tuple[Tensor, ...],
     ) -> StepOutput:
+        # Structural checks are O(1) against step math that is O(B*F), so
+        # they stay on even when validation is off: a wrong input/state arity
+        # or a non-tuple _step return must fail loudly instead of handing the
+        # caller silently garbled output in fast mode. Only the per-tensor
+        # dtype checks (and the shape checks in the hidden paths) honor the
+        # validate flag.
+        expected_inputs = len(self._pk_input_names)
+
+        if len(inputs) != expected_inputs:
+            raise ValueError(
+                f"{type(self).__name__} expects {expected_inputs} input "
+                f"tensors, got {len(inputs)}"
+            )
+
+        expected_state = len(self._pk_state_names)
+        if len(state) != expected_state:
+            raise ValueError(
+                f"{type(self).__name__} expects {expected_state} state "
+                f"tensors, got {len(state)}"
+            )
+
         if is_validating(self):
-            expected_inputs = len(self._pk_input_names)
-
-            if len(inputs) != expected_inputs:
-                raise ValueError(
-                    f"{type(self).__name__} expects {expected_inputs} input "
-                    f"tensors, got {len(inputs)}"
-                )
-
-            expected = len(self._pk_state_names)
-            if len(state) != expected:
-                raise ValueError(
-                    f"{type(self).__name__} expects {expected} state tensors, "
-                    f"got {len(state)}"
-                )
-
             check_input_dtypes(self, inputs)
 
         out = self._step(*inputs, *state)
 
-        if is_validating(self):
-            check_step_output(self, out)
+        # Runtime contract check: a user-authored _step may return a
+        # non-tuple despite the annotation, so this is reachable in fast
+        # mode too and must not be gated on the validate flag.
+        check_step_output(self, out)
 
         return self._pk_post_step(out)
 

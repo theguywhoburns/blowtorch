@@ -4,7 +4,7 @@ from typing import Any, Callable, ClassVar, Optional, Self
 
 import torch
 
-from .specs import (
+from ..specs import (
     InputTensor,
     OutputSpec,
     Spec,
@@ -13,14 +13,14 @@ from .specs import (
     Tensor,
     _pk_floating_dtype,
 )
+from .inputs import InputMixin
 
 # State/output declarations, hidden-mode allocation, and state factories.
-# Host members used below but owned by earlier mixins are declared as type-only
-# stubs; PyroModule's MRO (this mixin sits after their owners) resolves
-# the real implementations at runtime.
+# Depends on InputMixin (named-input shapes); pure callers below depend on
+# this mixin instead of redeclaring its members as stubs.
 
 
-class StateMixin:
+class StateMixin(InputMixin):
     _pk_spec_entries: ClassVar[tuple[tuple[str, Spec], ...]] = ()
     _pk_output_names: ClassVar[tuple[str, ...]] = ()
     _pk_state_names: ClassVar[tuple[str, ...]] = ()
@@ -34,11 +34,7 @@ class StateMixin:
     _pk_allocated: bool
     _buffers: dict[str, Optional[Tensor]]
     _non_persistent_buffers_set: set[str]
-
-    def _pk_canonicalize_inputs(
-        self,
-        inputs: InputTensor,
-    ) -> tuple[Tensor, ...]: ...
+    _pk_hook_specs_steps: ClassVar[tuple[Callable[..., Any], ...]]
 
     def _pk_process_spec_extensions(self) -> None:
         """
@@ -46,13 +42,17 @@ class StateMixin:
 
         Handlers run after specs are resolved so they can rely on class
         metadata (``_pk_state_specs``, ``_pk_param_specs``) and on instance
-        parameters already being registered.
+        parameters already being registered. Then runs the frozen
+        ``_pk_hook_specs__*`` chain (e.g. reset-fn install); hooks are
+        collected once per class, never resolved per call.
         """
         for i, spec in enumerate(self._pk_state_specs):
             for key, value in spec.extras.items():
                 handler = self._pk_spec_extensions.get(key)
                 if handler is not None:
                     handler(self, i, spec, value)
+        for fn in self._pk_hook_specs_steps:
+            fn(self)
 
     def _pk_resolve_default(
         self,
@@ -97,7 +97,15 @@ class StateMixin:
             else torch.get_default_dtype()
         )
 
+        # Allocate hidden STATE buffers only. Output buffers are written by
+        # the first store (_pk_store_hidden_outputs / the sequence-buffer
+        # helper), so pre-allocating them here was dead work: for an output
+        # whose shape differs from the primary input, the allocation was
+        # discarded on the first step and its shape lied until then.
         for name, spec in self._pk_spec_entries:
+            if not isinstance(spec, StateSpec):
+                continue
+
             self._buffers[name] = torch.full(
                 self._pk_spec_shape(spec, inputs),
                 self._pk_resolve_default(spec.default),
@@ -159,7 +167,11 @@ class StateMixin:
             if not spec.differentiable:
                 t = t.detach()
 
-            # Buffers already exist after _pk_alloc_hidden.
+            # Buffers already exist after _pk_alloc_hidden (states) or are
+            # created here on first store (outputs). Either way they must be
+            # non-persistent: hidden-mode contents travel via get_extra_state,
+            # not as plain state_dict keys.
+            self._non_persistent_buffers_set.add(name)
             self._buffers[name] = t
 
     def _pk_shape_for_batch(self, spec: StateSpec, batch_shape: tuple[int, ...]) -> tuple[int, ...]:

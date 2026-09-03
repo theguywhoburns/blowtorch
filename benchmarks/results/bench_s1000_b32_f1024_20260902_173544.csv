@@ -1,0 +1,2 @@
+name,variant,compiled,ms_per_step,steps_per_sec
+pyrokinesis LIF,seq hidden,False,0.040338,24791

@@ -3,7 +3,9 @@ from __future__ import annotations
 import inspect
 from typing import Any, Callable, ClassVar
 
-from .specs import Constraint, ParamSpec, Tensor
+import torch
+
+from ..specs import Constraint, ParamSpec, Tensor
 
 
 class ParamMixin:
@@ -33,3 +35,15 @@ class ParamMixin:
         The returned expression is frozen at init time.
         """
         return self._pk_constrained_fn()
+
+    def constrained_named(self) -> dict[str, torch.Tensor]:
+        """
+        Constrained parameters keyed by Params declaration name.
+
+        Same values as ``constrained()``, resolved by name instead of
+        declaration order, so inserting a Param cannot silently shift values
+        into the wrong variable when a caller unpacks positionally. Prefer
+        this in ``_step`` unless profiling shows the per-call dict build
+        matters; ``constrained()`` remains the zero-overhead hot path.
+        """
+        return dict(zip(self._pk_param_specs, self.constrained(), strict=True))

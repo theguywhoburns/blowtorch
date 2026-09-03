@@ -7,6 +7,7 @@ import types
 from typing import Any
 
 from pyrokinesis import ParamSpec, StateSpec, StepOutput, identity
+from pyrokinesis.module.mixins.states import StateMixin
 
 _PK_RESET_CACHE: dict[str, Any] = {}
 
@@ -114,21 +115,29 @@ class ResetHandler:
         self.apply(module, state_index, spec, reset_spec)
 
 
-class ResetMixin:
-    """Declarative per-state reset mixin — SNN-specific, not generic PyroModule."""
+class ResetMixin(StateMixin):
+    """Declarative per-state reset mixin — SNN-specific, not generic PyroModule.
+
+    Extends ``StateMixin`` so spec metadata resolves by inheritance, not by
+    ``SnnModule`` base order. Contributes two frozen hooks (collected once
+    per class in ``PyroModule.__init_subclass__``, never resolved per call):
+    ``_pk_hook_specs__rst`` installs the reset fn after spec dispatch,
+    ``_pk_hook_post__rst`` applies resets in the post-step chain. Diamond
+    is safe without reinit guards: neither mixin defines ``__init__`` (C3
+    keeps ``StateMixin`` once in the MRO) and both dispatch and install
+    are idempotent.
+    """
 
     _pk_reset_exprs: dict[int, ResetSpec]
 
-    def _pk_process_spec_extensions(self) -> None:
-        super()._pk_process_spec_extensions()  # type: ignore[attr-defined]
+    def _pk_hook_specs__rst(self) -> None:
         self._pk_install_reset_fn()  # type: ignore[attr-defined]
 
-    def _pk_post_step(self, out: StepOutput) -> StepOutput:
+    def _pk_hook_post__rst(self, out: StepOutput) -> StepOutput:
         if isinstance(out, tuple) and len(out) > 0:
             spk = out[0]
             pre_state = out[1:]
-            next_state = self._pk_apply_resets(pre_state, spk)  # type: ignore[attr-defined]
-            return (spk, *next_state)
+            return (spk, *self._pk_apply_resets(pre_state, spk))  # type: ignore[attr-defined]
         return out
 
     def _pk_install_reset_fn(self) -> None:
@@ -198,9 +207,13 @@ class ResetMixin:
         for name, spec in self._pk_param_specs.items():  # type: ignore[attr-defined]
             if spec is target:
                 return name
+        # Example name for the hint must not IndexError on a module with an
+        # empty Params block.
+        param_names = tuple(self._pk_param_specs.keys())  # type: ignore[attr-defined]
+        example = param_names[0] if param_names else "<param-name>"
         raise ValueError(
             "Reset target ParamSpec not found in Params: a ParamSpec target "
             "must be the exact object declared in this module's Params "
-            f"(targets are matched by identity; prefer the param name as a "
-            f"string, e.g. Reset.subtract({sorted(self._pk_param_specs.keys())[0]!r}))"  # type: ignore[attr-defined]
+            "(targets are matched by identity; prefer the param name as a "
+            f"string, e.g. Reset.subtract({example!r}))"
         )

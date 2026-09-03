@@ -1,0 +1,8 @@
+name,variant,compiled,ms_per_step,steps_per_sec
+pyrokinesis Sequential,seq,False,0.213537,4683
+pyrokinesis Sequential,seq,True,0.029165,34287
+pyrokinesis Sequential,step,False,0.210459,4752
+snntorch,step loop,False,0.595318,1680
+snntorch,step loop,True,0.117561,8506
+norse,seq,False,0.584892,1710
+norse,seq,True,0.030604,32676

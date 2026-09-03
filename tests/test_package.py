@@ -4,6 +4,7 @@ import pyrokinesis
 def test_public_exports_match_all():
     expected = [
         "PyroModule",
+        "StepModule",
         "Tensor",
         "StepOutput",
         "Param",

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import inspect
 import keyword
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 from .specs import (
     ConstantSpec,
@@ -12,6 +12,7 @@ from .specs import (
     ParamSpec,
     Spec,
     StateSpec,
+    Tensor,
 )
 
 if TYPE_CHECKING:
@@ -277,6 +278,12 @@ def generate_signature(cls: type[PyroModule]) -> None:
     for name, spec in cls._pk_param_specs.items():
         ann = spec.dtype if spec.dtype is not None else cls._pk_param_annotations.get(name, Any)
 
+        # Runtime honesty: a Param is stored as an nn.Parameter regardless of
+        # the declared ``dtype=``. Advertising the bare declared type here
+        # made help() describe a tensor-scalar attribute as a plain float.
+        if isinstance(spec.dtype, type):
+            ann = Union[spec.dtype, Tensor]
+
         sig_params.extend(
             [
                 inspect.Parameter(
@@ -321,7 +328,15 @@ def generate_signature(cls: type[PyroModule]) -> None:
             )
         )
 
-    sig_params.extend(cls._pk_extra_init_params())
+    # Order-less contribution: every mixin in the MRO may add init params
+    # by defining _pk_extra_init_params in its own __dict__. Aggregate
+    # base-first so no contributor needs super() and none is dropped
+    # (SnnModule.spike_grad used to shadow ParamMixin's hook).
+    for klass in reversed(cls.__mro__):
+        hook = klass.__dict__.get("_pk_extra_init_params")
+        if hook is not None:
+            fn = hook.__func__ if isinstance(hook, classmethod) else hook
+            sig_params.extend(fn(cls))
 
     sig_params.append(
         inspect.Parameter(

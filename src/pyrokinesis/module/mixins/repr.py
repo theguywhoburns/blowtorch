@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from typing import ClassVar, Optional
 
+from .inputs import InputMixin
 
-class ReprMixin:
+
+class ReprMixin(InputMixin):
     """Module repr."""
 
     size: Optional[int]

@@ -630,7 +630,9 @@ def test_wrong_state_count_raises():
         m((x, inh), torch.randn(B, F), torch.randn(B, F))
 
 
-def test_validation_disabled_skips_input_count_check():
+def test_validation_disabled_keeps_input_count_check():
+    # Structural input-arity check is O(1) and stays on even when validation
+    # is off (review fix #2): only per-tensor dtype/shape checks are gated.
     class _AnyArity(PyroModule):
         class Inputs:
             x: Tensor
@@ -647,8 +649,8 @@ def test_validation_disabled_skips_input_count_check():
     state = _AnyArity().initial_state((B, F))
 
     m = _AnyArity(validate=False)
-    out, *_ = m._pk_forward_explicit((x,), state)
-    assert out.shape == (B, F)
+    with pytest.raises(ValueError, match="expects 2 input tensors"):
+        m._pk_forward_explicit((x,), state)
 
     n = _AnyArity(validate=True)
     with pytest.raises(ValueError, match="expects 2 input tensors"):

@@ -89,3 +89,32 @@ def test_izhikevich_sequence_matches_eager_scan():
     out = m.forward_sequence(x_seq)
     ref = eager.forward_sequence(x_seq)
     assert torch.allclose(out, ref, atol=1e-5)
+
+
+def test_v_peak_is_a_declared_param():
+    # The firing threshold was hardcoded to 30.0 before the review fixes;
+    # every other constant in the library is a declared Param.
+    m = Izhikevich()
+    assert isinstance(m.v_peak, torch.nn.Parameter)
+    assert m.v_peak.item() == pytest.approx(30.0)
+    assert "v_peak" in m.state_dict()
+
+    # The constructor kwarg is honored and changes firing behavior.
+    hot = Izhikevich(v_peak=-100.0)  # fires immediately
+    cold = Izhikevich(v_peak=1e6)  # never fires
+    x = torch.zeros(B, F)
+    s_hot = hot.initial_state((B, F))
+    s_cold = cold.initial_state((B, F))
+
+    spk_hot, _ = hot.step_state(x, s_hot)
+    spk_cold, _ = cold.step_state(x, s_cold)
+
+    assert spk_hot.all()
+    assert not spk_cold.any()
+
+    # Default behavior unchanged: reference step still fires at 30 mV.
+    m2 = Izhikevich()
+    v = torch.full((B, F), 31.0)
+    u = torch.full((B, F), -13.0)
+    spk, _ = m2.step_state(torch.zeros(B, F), (v, u))
+    assert spk.all()

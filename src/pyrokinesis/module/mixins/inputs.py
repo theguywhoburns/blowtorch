@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-from .specs import InputSpec, InputTensor, Tensor
+from ..specs import InputSpec, InputTensor, Tensor
 
 
 class InputMixin:

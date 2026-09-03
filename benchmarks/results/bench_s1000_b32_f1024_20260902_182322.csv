@@ -1,0 +1,15 @@
+name,variant,compiled,ms_per_step,steps_per_sec
+pyrokinesis LIF,seq hidden,False,0.037112,26946
+pyrokinesis LIF,seq hidden,True,0.003768,265398
+pyrokinesis LIF,seq explicit,False,0.038977,25656
+pyrokinesis LIF,seq explicit,True,0.003442,290505
+pyrokinesis LIF,step hidden,False,0.044313,22567
+pyrokinesis LIF,step hidden,True,0.035665,28039
+pyrokinesis LIF,step explicit,False,0.040224,24861
+pyrokinesis LIF,step explicit,True,0.035235,28381
+snntorch,seq,False,0.106392,9399
+snntorch,seq,True,0.044919,22262
+norse,seq,False,0.096494,10363
+norse,seq,True,0.004366,229059
+norse,step,False,0.109519,9131
+norse,step,True,0.037171,26903

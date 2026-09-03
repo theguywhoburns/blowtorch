@@ -6,7 +6,7 @@ from typing import ClassVar, Optional, Protocol
 
 import torch
 
-from .specs import (
+from ..specs import (
     InputSpec,
     Spec,
     StateSpec,

@@ -1,15 +1,12 @@
 from __future__ import annotations
 
 import keyword
-import types
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 import torch
 import torch.nn as nn
 
 from .specs import Constraint, identity
-
-_PK_CONSTRAINED_CACHE: dict[tuple, Callable[..., Any]] = {}
 
 if TYPE_CHECKING:
     from . import PyroModule
@@ -126,55 +123,46 @@ def build_params(
 
 def _pk_install_constrained(module: PyroModule) -> None:
     """
-    Freeze the constrained-parameter return expression on the module.
+    Freeze the constrained-parameter accessor on the module.
 
-    Example generated function for LIF:
+    The accessor is a closure over ``(name, constraint)`` pairs captured at
+    init: attribute lookups plus constraint calls in Params declaration
+    order, with no strings, no dict lookups, and no metadata resolution on
+    the hot path. No ``exec`` and no cache: the closure is built per module
+    and keeps no references whose lifetime could interact with GC (the old
+    ``id()``-keyed cache was safe only by accident).
 
-        def _pk_constrained(self):
-            return (self._pk_constraint_0(self.beta), self.threshold)
+    Constrained (non-identity) constraint callables are still exposed as
+    ``_pk_constraint_{i}`` attributes because the SNN reset codegen
+    (``ResetMixin._pk_constraint_expr``) references them.
     """
-    exprs: list[str] = []
-
-    # Safety: the generated body below is exec'd, so every interpolated
-    # name must come from module-controlled sources. Param names are
-    # restricted to non-keyword Python identifiers (validated here and at
-    # class creation); constraint fns are attributes set via setattr from
-    # the declarative ParamSpecs, never from user strings. Nothing from
-    # user input can reach the exec namespace.
     param_names = tuple(module._pk_param_specs.keys())
 
-    for i, (name, constraint) in enumerate(
-        zip(param_names, module._pk_constraints, strict=True)
-    ):
+    for name in param_names:
         if not name.isidentifier() or keyword.iskeyword(name):
             raise ValueError(
                 f"Param name {name!r} must be a valid non-keyword Python identifier"
             )
 
-        if constraint is identity:
-            exprs.append(f"self.{name}")
-        else:
-            attr = f"_pk_constraint_{i}"
-            setattr(module, attr, constraint)
-            exprs.append(f"self.{attr}(self.{name})")
+    for i, constraint in enumerate(module._pk_constraints):
+        if constraint is not identity:
+            setattr(module, f"_pk_constraint_{i}", constraint)
 
-    if exprs:
-        ret = f"({', '.join(exprs)},)"
-    else:
-        ret = "()"
+    pairs = tuple(
+        (name, None if constraint is identity else constraint)
+        for name, constraint in zip(
+            param_names, module._pk_constraints, strict=True
+        )
+    )
 
-    src = f"def _pk_constrained(self):\n    return {ret}\n"
-    key = (param_names, tuple(id(c) for c in module._pk_constraints), src)
-    cached = _PK_CONSTRAINED_CACHE.get(key)
-    if cached is not None:
-        module._pk_constrained_fn = types.MethodType(cached, module)
-        return
+    def _pk_constrained(self, _pairs=pairs):
+        return tuple(
+            v if c is None else c(v)
+            for name, c in _pairs
+            for v in (getattr(self, name),)
+        )
 
-    ns: dict[str, Any] = {}
-    exec(src, ns)
-
-    _PK_CONSTRAINED_CACHE[key] = ns["_pk_constrained"]
-    module._pk_constrained_fn = types.MethodType(ns["_pk_constrained"], module)
+    module._pk_constrained_fn = _pk_constrained.__get__(module)
 
 
 def remaining_kwargs_error(

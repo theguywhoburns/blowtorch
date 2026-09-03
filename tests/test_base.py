@@ -92,6 +92,20 @@ class _NoTuple(PyroModule):
         return x                 # wrong: not a tuple
 
 
+class _TypedInput(PyroModule):
+    """Primary input declared with dtype=float (non-structural dtype check)."""
+
+    class Inputs:
+        x: torch.Tensor = PyroModule.Input(dtype=float)
+
+    class Specs:
+        o = PyroModule.OutputSpec()
+        s = PyroModule.StateSpec()
+
+    def _step(self, x, s):
+        return x, s
+
+
 class _FixedShapeHidden(PyroModule):
     """StateSpec with an explicit tuple shape (hidden allocation honors it)."""
 
@@ -526,7 +540,10 @@ def test_validate_gates_state_count_check():
     assert isinstance(out, tuple) and len(out) == 2
 
 
-def test_validate_gates_step_output_count():
+def test_step_output_count_checked_even_without_validation():
+    # Structural output-arity check is O(1) and stays on in fast mode: a
+    # _step returning the wrong count fails loudly instead of handing the
+    # caller silently garbled output when validate=False.
     x = torch.randn(B, F)
     s1 = torch.randn(B, F)
     s2 = torch.randn(B, F)
@@ -536,11 +553,13 @@ def test_validate_gates_step_output_count():
         m(x, s1, s2)
 
     m2 = _WrongCount(validate=False)
-    out = m2(x, s1, s2)
-    assert isinstance(out, tuple) and len(out) == 2
+    with pytest.raises(ValueError, match="returned 2 tensors, expected 3"):
+        m2(x, s1, s2)
 
 
-def test_validate_gates_step_output_type():
+def test_step_output_type_checked_even_without_validation():
+    # Structural tuple check stays on in fast mode: a bare-tensor _step
+    # return is a caller-visible contract break, not an optimization.
     x = torch.randn(B, F)
     s = torch.randn(B, F)
 
@@ -549,22 +568,24 @@ def test_validate_gates_step_output_type():
         m(x, s)
 
     m2 = _NoTuple(validate=False)
-    out = m2(x, s)
-    assert isinstance(out, torch.Tensor)
+    with pytest.raises(TypeError, match="must return a tuple of tensors"):
+        m2(x, s)
 
 
 def test_validate_setter_dynamic_toggle():
-    x = torch.randn(B, F)
-    s1 = torch.randn(B, F)
-    s2 = torch.randn(B, F)
+    # The dynamic toggle still gates the non-structural per-input dtype
+    # checks: an integer tensor on a float-declared input raises only while
+    # validation is on.
+    m = _TypedInput(validate=False)
+    x_long = torch.zeros(B, F, dtype=torch.long)
+    s = torch.randn(B, F)
 
-    m = _WrongCount(validate=False)
-    out = m(x, s1, s2)
-    assert isinstance(out, tuple) and len(out) == 2
+    out, *_ = m(x_long, s)
+    assert out.shape == (B, F)
 
     m.validate = True
-    with pytest.raises(ValueError, match="returned 2 tensors, expected 3"):
-        m(x, s1, s2)
+    with pytest.raises(TypeError, match="declared with dtype="):
+        m(x_long, s)
 
 
 # ----------------------------------------------------------------------
@@ -1698,3 +1719,81 @@ def test_generic_rnn_forward_sequence_works():
     m = _PlainRNN(init_hidden=True)
     out = m.forward_sequence(torch.randn(T, B, F))
     assert out.shape == (T, B, F)
+
+# ----------------------------------------------------------------------
+# I. Review fixes: graph-mode guard, state-only alloc, constrained_named
+# ----------------------------------------------------------------------
+
+
+def test_compile_sequence_scan_refuses_graph_modes_in_hidden_mode():
+    # Hidden-mode compiled scans store outputs into module buffers; under
+    # CUDA-graph modes those are graph-owned and alias recycled memory.
+    # The setup must refuse loudly instead of hedging in docstrings.
+    m = _Leaky(init_hidden=True)
+
+    with pytest.raises(ValueError, match="reduce-overhead"):
+        m.compile_sequence_scan(mode="reduce-overhead")
+
+    with pytest.raises(ValueError, match="max-autotune"):
+        m.compile_sequence_scan(mode="max-autotune")
+
+    with pytest.raises(ValueError, match="fast_sequence_"):
+        m.fast_sequence_(mode="reduce-overhead")
+
+    # Explicit mode stays eligible for graph modes (outputs are cloned on
+    # return); setting up the wrapper must not raise.
+    e = _Leaky(init_hidden=False)
+    e.compile_sequence_scan(mode="reduce-overhead")
+    assert e._pk_compiled_sequence is not None
+
+
+def test_alloc_hidden_creates_state_buffers_only():
+    # Output buffers used to be pre-allocated in the input's shape and then
+    # immediately replaced by the first store: dead work with a lying shape.
+    class _PooledOut(PyroModule):
+        class Specs:
+            out = PyroModule.OutputSpec()
+            mem = PyroModule.StateSpec()
+
+        def _step(self, x, mem):
+            mem = 0.5 * mem + x
+            return mem.mean(dim=-1, keepdim=True), mem
+
+    m = _PooledOut(init_hidden=True)
+    m.allocate_like(torch.randn(3, 7))
+
+    assert m._buffers["mem"].shape == (3, 7)
+    assert m._buffers.get("out") is None
+
+    y = m(torch.randn(3, 7))
+
+    assert tuple(y.shape) == (3, 1)
+    assert tuple(m._buffers["out"].shape) == (3, 1)
+
+    # Output buffers remain non-persistent after first store.
+    sd = m.state_dict()
+    assert "out" not in sd and "mem" not in sd
+
+
+def test_constrained_named_matches_constrained_by_name():
+    net = LIF(learnable_beta=True, learnable_threshold=True)
+
+    named = net.constrained_named()
+    assert set(named) == {"beta", "threshold"}
+
+    ordered = net.constrained()
+    assert torch.equal(ordered[0], named["beta"])
+    assert torch.equal(ordered[1], named["threshold"])
+
+    # Constraints are applied by name too (beta clamps to [0, 1]).
+    assert (named["beta"] >= 0).all() and (named["beta"] <= 1).all()
+
+
+def test_step_module_alias_is_pyro_module():
+    from pyrokinesis import StepModule
+
+    assert StepModule is PyroModule
+
+    # The alias constructs the same class with the same declarative surface.
+    m = StepModule(size=4)
+    assert isinstance(m, PyroModule)

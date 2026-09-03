@@ -5,7 +5,7 @@ from typing import Any, Callable, ClassVar, Optional, Self
 
 import torch
 
-from .specs import (
+from ..specs import (
     InputSpec,
     InputTensor,
     OutputSpec,
@@ -14,6 +14,7 @@ from .specs import (
     StepOutput,
     Tensor,
 )
+from .forward import ForwardMixin
 from .validation import (
     check_hidden_input_shape,
     is_validating,
@@ -37,6 +38,9 @@ def _store_hidden_seq_buffers(
     for name, t in zip(host._pk_state_names, tail, strict=True):
         host._buffers[name] = t
     for name, spec, t in zip(host._pk_output_names, host._pk_output_specs, ys, strict=True):
+        # Output buffers are created here on first store and must be
+        # non-persistent (hidden contents travel via get_extra_state).
+        host._non_persistent_buffers_set.add(name)
         host._buffers[name] = _clone_last_for_buffer(t, spec)
 
 
@@ -151,17 +155,16 @@ def sequence_scan(
     return (*ys, *cur)
 
 
-class SequenceScanMixin:
+class SequenceScanMixin(ForwardMixin):
     """Time-major sequence scans over a PyroModule.
 
-    Members the mixin needs from the host are declared as type-only stubs
-    below (annotations set no runtime attribute, so PyroModule's real
-    implementations always win the MRO). The stub surface also structurally
-    satisfies ``_ValidationHost`` so the free validation helpers accept
-    ``self``.
+    Depends on ForwardMixin (explicit step, alloc, canonicalization, state
+    factories); the annotations below are typing-only and set no runtime
+    attribute. The stub surface also structurally satisfies
+    ``_ValidationHost`` so the free validation helpers accept ``self``.
     """
 
-    # Host attributes and methods referenced by the scan methods.
+    # Host attributes referenced by the scan methods (typing-only).
 
     _validate_override: Optional[bool]
     init_hidden: bool
@@ -175,33 +178,7 @@ class SequenceScanMixin:
     _pk_spec_entries: ClassVar[tuple[tuple[str, Spec], ...]]
     _pk_output_specs: ClassVar[tuple[OutputSpec, ...]]
     _buffers: dict[str, Optional[Tensor]]
-
-    def _pk_spec_shape(
-        self,
-        spec: Spec,
-        inputs: tuple[Tensor, ...],
-    ) -> tuple[int, ...]: ...
-
-    def _pk_canonicalize_inputs(
-        self,
-        inputs: InputTensor,
-    ) -> tuple[Tensor, ...]: ...
-
-    def _pk_alloc_hidden(self, inputs: tuple[Tensor, ...]) -> None: ...
-
-    def _pk_forward_explicit(
-        self,
-        inputs: tuple[Tensor, ...],
-        state: tuple[Tensor, ...],
-    ) -> StepOutput: ...
-
-    def allocate_like(self, *inputs: InputTensor) -> Self: ...
-
-    def initial_state_like(
-        self,
-        inputs: InputTensor,
-        batch_shape: Optional[tuple[int, ...]] = None,
-    ) -> tuple[Tensor, ...]: ...
+    _non_persistent_buffers_set: set[str]
 
     # Sequence scan implementation.
 
@@ -404,6 +381,18 @@ class SequenceScanMixin:
         # force an extra live ``(T,B,F)`` output buffer (380 MiB vs 252 MiB)
         # and split the graph.
         if self.init_hidden:
+            if needs_clone:
+                raise ValueError(
+                    f"{type(self).__name__}.compile_sequence_scan(mode="
+                    f"{kwargs.get('mode')!r}) is not supported with "
+                    f"init_hidden=True: the compiled graph owns its output "
+                    f"tensors, and storing them into the module's hidden "
+                    f"buffers would alias compiler-recycled CUDA-graph "
+                    f"memory. Use mode='default' (and call allocate_like(x) "
+                    f"before the first call), or switch to explicit mode "
+                    f"(init_hidden=False) if you need CUDA graphs."
+                )
+
             n_outputs = len(self._pk_output_names)
 
             def _pure_hidden(
@@ -478,10 +467,25 @@ class SequenceScanMixin:
         """
         Enable a fast research path: validation off + optional compiled scan.
 
-        ``mode="default"`` is always used. ``reduce-overhead`` (CUDA graphs)
-        is avoided: it is slower to compile and incompatible with hidden-mode
-        buffer registration.
+        ``mode`` defaults to ``"default"``. CUDA-graph modes
+        (``"reduce-overhead"``, ``"max-autotune"``) are refused in hidden
+        mode (``init_hidden=True``): graph-owned outputs would alias the
+        compiler's recycled memory when stored into the module's hidden
+        buffers. Pass them only on explicit-mode (``init_hidden=False``)
+        modules, where outputs are cloned under graph modes.
         """
+        if (
+            self.init_hidden
+            and compile_kwargs.get("mode") in ("reduce-overhead", "max-autotune")
+        ):
+            raise ValueError(
+                f"{type(self).__name__}.fast_sequence_(mode="
+                f"{compile_kwargs.get('mode')!r}) is not supported with "
+                f"init_hidden=True: CUDA-graph outputs would alias the "
+                f"module's hidden buffers. Use mode='default' (the default), "
+                f"or switch to explicit mode (init_hidden=False)."
+            )
+
         set_validating(self, False)
 
         if compile_scan:

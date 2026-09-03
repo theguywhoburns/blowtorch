@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from typing import Any, ClassVar, Optional
 
-from .specs import Spec, Tensor
+from ..specs import Spec, Tensor
+from .states import StateMixin
 
 
-class SerializationMixin:
+class SerializationMixin(StateMixin):
     """state_dict integration for hidden buffers."""
 
     init_hidden: bool

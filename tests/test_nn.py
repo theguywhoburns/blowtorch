@@ -3,7 +3,7 @@ import pytest
 
 import torch.nn as nn
 
-from pyrokinesis import PyroModule
+from pyrokinesis import PyroModule, no_validation
 from pyrokinesis.nn import Sequential
 from pyrokinesis.snn import LIF
 
@@ -174,7 +174,75 @@ def test_sequential_fast_sequence_disables_child_validation():
 
     assert net.validate is False
     assert net.layer0.validate is False
-    assert net.layer2.validate is False
+    assert net.layer2 is not None and net.layer2.validate is False
+
+    # Documented fast-path contract: the per-layer validate=False mutation is
+    # persistent. It survives forwards, and the global toggle does not
+    # re-enable the layers because an explicit per-instance override wins.
+    x_seq = torch.randn(2, 3, 4)
+    out = net.forward_sequence(x_seq)
+    assert out is not None
+    assert net.layer0.validate is False
+    with no_validation():
+        assert net.layer0.validate is False
+    assert net.validate is False
+
+
+def test_sequential_delitem_rejects_last_layer_atomically():
+    # A rejected del must leave the module untouched: the pre-fix version
+    # emptied _layers before raising, leaving a stale layer0 child and a
+    # bricked module (every later forward died with a state-arity error).
+    net = Sequential(LIF())
+
+    with pytest.raises(ValueError, match="at least one layer"):
+        del net[0]
+
+    assert len(net._layers) == 1
+    assert net.layer0 is net._layers[0]
+    assert len(net._pk_state_names) == 1
+
+    out = net.forward(torch.randn(3, 4), *net.initial_state((3, 4)))
+    assert out[0].shape == (3, 4)
+
+
+def test_sequential_delitem_reindexes_layers_and_registry():
+    torch.manual_seed(0)
+    net = Sequential(LIF(), LIF(beta=0.5), LIF(beta=0.7))
+
+    del net[1]  # negative-index path: del net[-1] must behave identically
+
+    assert len(net._layers) == 2
+    assert net.layer0 is net._layers[0]
+    assert net.layer1 is net._layers[1]
+    assert net.layer1.beta.item() == pytest.approx(0.7)
+    assert "layer2" not in net._modules
+    assert len(net._pk_state_names) == 2
+
+    out = net.forward(torch.randn(3, 4), *net.initial_state((3, 4)))
+    assert out[0].shape == (3, 4)
+
+
+def test_sequential_hidden_state_dict_full_roundtrip():
+    # Full state_dict() -> load_state_dict() roundtrip in hidden mode: params
+    # travel as plain keys, hidden buffers via get_extra_state/set_extra_state
+    # (the pre-existing tests covered only one of the two halves).
+    torch.manual_seed(0)
+    net = Sequential(nn.Linear(4, 8), LIF(beta=0.7), LIF(), init_hidden=True)
+    x = torch.randn(3, 4)
+    net.forward(x)
+
+    sd = net.state_dict()
+    assert "layer1.beta" in sd
+    assert "l1_mem" not in sd and "l2_mem" not in sd
+
+    net2 = Sequential(nn.Linear(4, 8), LIF(beta=0.7), LIF(), init_hidden=True)
+    net2.load_state_dict(sd)
+    assert net2._pk_allocated
+
+    # Identical params + restored hidden state -> identical next outputs.
+    y1 = net.forward(x)
+    y2 = net2.forward(x)
+    assert torch.allclose(y1, y2, atol=1e-6)
 
 
 def test_sequential_trainable():
