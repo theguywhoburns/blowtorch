@@ -29,11 +29,16 @@ class MCN(SnnModule):
     The paper's surrogate ``d(spk)/du = 2*tau_L/(4 + (pi*tau_L*u)**2)`` is
     exactly the classic ATan surrogate with ``beta = tau_L`` (see
     ``pyrokinesis.util.atan_surrogate``); if you change ``tau_L`` from its
-    default, pass ``spike_grad=atan_surrogate(tau_L)`` explicitly.
+    default, pass ``spike_grad=atan_surrogate(tau_L)`` explicitly — but only
+    with a fixed ``tau_L``. A frozen ``beta`` will not track a learnable
+    ``tau_L`` as it trains; if ``tau_L`` must learn, pass a callable that
+    reads the live value (e.g. a bound method using
+    ``self.constrain("tau_L")``).
 
     Defaults match the paper's Fig. 3(F): ``tau_A = tau_B = 2.0``,
     ``tau_L = 4.0``, ``gA = gB = gL = 1.0``, ``threshold = 0.8``.
     """
+
 
     class Params:
         tau_B = SnnModule.Param(
@@ -47,6 +52,7 @@ class MCN(SnnModule):
         tau_L = SnnModule.Param(
             default=4.0,
             constraint=clamp_positive,
+            frozen_surrogate=True,
         )
         gB = SnnModule.Param(
             default=1.0,

@@ -52,6 +52,10 @@ class ParamSpec:
     learnable: bool = False
     force_learn: bool = False
     constraint: Constraint = identity
+    # Marks a param whose drift invalidates a frozen explicit spike_grad
+    # (e.g. MCN's tau_L feeding an atan_surrogate beta): SnnModule raises
+    # at construction for explicit spike_grad + learnable marked param.
+    frozen_surrogate: bool = False
     dtype: Any = None
 
 
@@ -65,6 +69,7 @@ def Param(
     learnable: bool = False,
     force_learn: bool = False,
     constraint: Constraint = identity,
+    frozen_surrogate: bool = False,
     dtype: None = None,
 ) -> Any: ...
 
@@ -76,6 +81,7 @@ def Param(
     learnable: bool = False,
     force_learn: bool = False,
     constraint: Constraint = identity,
+    frozen_surrogate: bool = False,
     dtype: type[T],
 ) -> T: ...
 
@@ -87,6 +93,7 @@ def Param(
     learnable: bool = False,
     force_learn: bool = False,
     constraint: Constraint = identity,
+    frozen_surrogate: bool = False,
     dtype: Any = None,
 ) -> Any: ...
 
@@ -97,6 +104,7 @@ def Param(
     learnable: bool = False,
     force_learn: bool = False,
     constraint: Constraint = identity,
+    frozen_surrogate: bool = False,
     dtype: Any = None,
 ) -> Any:
     """
@@ -118,12 +126,18 @@ def Param(
     Constraints apply only to learnable parameters: a fixed (non-learnable)
     param is used raw in ``constrain(name)`` / resets, while a learnable one has
     its constraint applied on the hot path.
+
+    ``frozen_surrogate`` marks a param whose drift invalidates a frozen
+    explicit ``spike_grad`` (e.g. a surrogate beta tied to the param):
+    ``SnnModule`` raises at construction for explicit ``spike_grad`` plus a
+    learnable marked param.
     """
     return ParamSpec(
         default=default,
         learnable=learnable,
         force_learn=force_learn,
         constraint=constraint,
+        frozen_surrogate=frozen_surrogate,
         dtype=dtype,
     )
 

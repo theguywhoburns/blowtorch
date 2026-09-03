@@ -68,3 +68,19 @@ class SnnModule(ResetMixin, PyroModule):
             if spike_grad is not None
             else default_spike_grad
         )
+
+        # A frozen explicit surrogate silently stops tracking a learnable
+        # param it was derived from (e.g. atan_surrogate(tau_L)): refuse
+        # loudly. Params opt in declaratively via frozen_surrogate=True.
+        if spike_grad is not None:
+            for name, spec in self._pk_param_specs.items():
+                if spec.frozen_surrogate and getattr(self, name).requires_grad:
+                    raise ValueError(
+                        f"{type(self).__name__} got an explicit spike_grad "
+                        f"with learnable {name!r}: frozen-beta surrogates "
+                        f"(e.g. atan_surrogate({name})) silently stop "
+                        f"tracking {name} as it trains. Keep {name} fixed, "
+                        f"or pass a callable that reads the live value "
+                        f"(e.g. a bound method using "
+                        f"self.constrain({name!r}))."
+                    )
