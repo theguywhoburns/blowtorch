@@ -135,9 +135,12 @@ class ResetMixin(StateMixin):
 
     def _pk_hook_post__rst(self, out: StepOutput) -> StepOutput:
         if isinstance(out, tuple) and len(out) > 0:
+            # Position-aware split: _step returns (outputs..., states...),
+            # so resets apply to out[n_outputs:], never to extra outputs.
+            n_out = len(self._pk_output_names)  # type: ignore[attr-defined]
             spk = out[0]
-            pre_state = out[1:]
-            return (spk, *self._pk_apply_resets(pre_state, spk))  # type: ignore[attr-defined]
+            pre_state = out[n_out:]
+            return (*out[:n_out], *self._pk_apply_resets(pre_state, spk))  # type: ignore[attr-defined]
         return out
 
     def _pk_install_reset_fn(self) -> None:

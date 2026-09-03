@@ -28,9 +28,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/theguywhoburns/pyrokinesis"
-Repository = "https://github.com/theguywhoburns/pyrokinesis"
-Issues = "https://github.com/theguywhoburns/pyrokinesis/issues"
+Homepage = "https://github.com/theguywhoburns/blowtorch"
+Repository = "https://github.com/theguywhoburns/blowtorch"
+Issues = "https://github.com/theguywhoburns/blowtorch/issues"
 
 [project.optional-dependencies]
 cu130 = ["torch>=2.13.0"]

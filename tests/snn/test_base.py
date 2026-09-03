@@ -360,3 +360,34 @@ def test_reset_hidden_explicit_equivalence():
         e_spk, state = explicit.step_state(x, state)
         assert torch.equal(h_spk, e_spk)
         assert torch.allclose(hidden._buffers["mem"], state[0], atol=1e-6)
+
+
+class _MultiOutReset(SnnModule):
+    """Two outputs + one reset state: resets must hit the state, never extra."""
+
+    class Params:
+        beta = SnnModule.Param(0.9)
+        threshold = SnnModule.Param(1.0)
+
+    class Specs:
+        spk = SnnModule.OutputSpec(differentiable=False)
+        extra = SnnModule.OutputSpec(differentiable=False)
+        mem = SnnModule.StateSpec(reset=Reset.subtract("threshold"))
+
+    def _step(self, x, mem):
+        beta = self.constrain("beta")
+        threshold = self.constrain("threshold")
+        mem = beta * mem + x
+        spk = (mem >= threshold).float()
+        return spk, mem * 100.0, mem
+
+
+@pytest.mark.parametrize("validate", [True, False])
+def test_multi_output_reset_targets_state_only(validate):
+    m = _MultiOutReset(validate=validate)
+    out = m(torch.tensor([2.0]), torch.zeros(1))
+    assert len(out) == 3
+    spk, extra, mem = (t.item() for t in out)
+    assert spk == 1.0
+    assert extra == pytest.approx(200.0)  # untouched by the reset
+    assert mem == pytest.approx(1.0)  # 2.0 - 1.0 * threshold
