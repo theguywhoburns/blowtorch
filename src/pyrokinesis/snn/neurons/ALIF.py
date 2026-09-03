@@ -52,7 +52,10 @@ class ALIF(SnnModule):
         mem: Tensor,
         adapt: Tensor,
     ) -> StepOutput:
-        beta, threshold, beta_a, tau_a = self.constrained()
+        beta = self.constrain("beta")
+        threshold = self.constrain("threshold")
+        beta_a = self.constrain("beta_a")
+        tau_a = self.constrain("tau_a")
 
         mem = beta * mem + x
         spk = self.spike_grad(mem - (threshold + beta_a * adapt))

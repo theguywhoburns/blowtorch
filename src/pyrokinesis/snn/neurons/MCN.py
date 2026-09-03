@@ -83,7 +83,13 @@ class MCN(SnnModule):
         V_a: Tensor,
         u: Tensor,
     ) -> StepOutput:
-        tau_B, tau_A, tau_L, gB, gA, gL, threshold = self.constrained()
+        tau_B = self.constrain("tau_B")
+        tau_A = self.constrain("tau_A")
+        tau_L = self.constrain("tau_L")
+        gB = self.constrain("gB")
+        gA = self.constrain("gA")
+        gL = self.constrain("gL")
+        threshold = self.constrain("threshold")
 
         V_b_new = (1 - 1 / tau_B) * V_b + (1 / tau_B) * x_b
         V_a_new = (1 - 1 / tau_A) * V_a + (1 / tau_A) * x_a

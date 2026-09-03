@@ -27,7 +27,12 @@ class _AdExReference(SnnModule):
         adapt = SnnModule.StateSpec()
 
     def _step(self, x, mem, adapt):
-        tau_m, tau_w, V_rest, _V_reset, V_T, delta_T, a, _b = self.constrained()
+        tau_m = self.constrain("tau_m")
+        tau_w = self.constrain("tau_w")
+        V_rest = self.constrain("V_rest")
+        V_T = self.constrain("V_T")
+        delta_T = self.constrain("delta_T")
+        a = self.constrain("a")
         dv = (
             -(mem - V_rest)
             + delta_T * torch.exp((mem - V_T) / delta_T)
@@ -57,7 +62,14 @@ def test_adex_reset_semantics_match_reference():
 
     ref = _AdExReference(init_hidden=False)
     mem, adapt = ref.initial_state((B, F))
-    tau_m, tau_w, V_rest, V_reset, V_T, delta_T, a, b = ref.constrained()
+    tau_m = ref.constrain("tau_m")
+    tau_w = ref.constrain("tau_w")
+    V_rest = ref.constrain("V_rest")
+    V_reset = ref.constrain("V_reset")
+    V_T = ref.constrain("V_T")
+    delta_T = ref.constrain("delta_T")
+    a = ref.constrain("a")
+    b = ref.constrain("b")
 
     ref_spks = []
     for t in range(T):

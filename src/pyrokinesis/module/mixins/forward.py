@@ -49,7 +49,8 @@ class ForwardMixin(StateMixin):
         nor its gradient ever overflows for any dtype. Matches ``exp`` wherever
         the plain exponential is safely below the dtype maximum.
         """
-        max_arg = torch.log(torch.tensor(torch.finfo(t.dtype).max, dtype=t.dtype)) - 1
+        bound = torch.tensor(torch.finfo(t.dtype).max, dtype=t.dtype, device=t.device)
+        max_arg = torch.log(bound) - 1
         return torch.clamp(t, max=max_arg).exp()
 
     def _pk_hidden_step(self, inputs: tuple[Tensor, ...]) -> StepOutput:
@@ -84,14 +85,19 @@ class ForwardMixin(StateMixin):
         Driver applied to the raw output of ``_step`` before it is returned
         or stored.
 
-        Runs the frozen ``_pk_hook_post__*`` chain (base-first, collected
+        Runs the frozen ``_pk_hook_post__*`` chain (child-first, collected
         once per class in ``PyroModule.__init_subclass__``); empty for plain
         modules, so this is a single tuple iteration with no per-call
         ``super()``/``getattr`` resolution and nothing for Dynamo to choke
         on. Domain mixins (e.g. ``ResetMixin``) contribute bare transforms.
+        The output is re-validated after the chain when validation is on,
+        so a bad hook returning the wrong type or arity fails loudly in
+        validated mode.
         """
         for fn in self._pk_hook_post_steps:
             out = fn(self, out)
+        if is_validating(self):
+            check_step_output(self, out)
         return out
 
     def _pk_forward_explicit(

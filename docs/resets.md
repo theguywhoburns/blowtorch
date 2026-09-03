@@ -2,8 +2,9 @@
 
 Resets are a strictly **SNN** feature: only `SnnModule` subclasses may declare
 them. The base `PyroModule` is a pure state-threading engine and makes no
-assumptions about spikes or resets; `SnnModule` overrides the generic
-`_post_step` hook to apply resets to the pre-reset state returned by `_step`.
+assumptions about spikes or resets; `SnnModule` contributes a
+`_pk_hook_post__rst` entry to the frozen post-step chain, which applies
+resets to the pre-reset state returned by `_step`.
 
 Resets are declared per-state in `Specs` via the `Reset` factory. They run
 **after** `_step` in both execution modes, using the step's spike output:
@@ -17,7 +18,7 @@ class MyLIF(SnnModule):
 
 A reset's target can be the **name of a `Params` entry** (validated against
 the module at init) or a `ParamSpec` object directly (e.g. a module-level
-sentinel). Targets are resolved through `constrained()`, so the constrained
+sentinel). Targets are resolved through `constrain(name)`, so the constrained
 value (not the raw parameter) is used.
 
 ## Kinds

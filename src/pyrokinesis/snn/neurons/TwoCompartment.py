@@ -57,7 +57,11 @@ class TwoCompartment(SnnModule):
         v_soma: Tensor,
         v_dend: Tensor,
     ) -> StepOutput:
-        gL, g_c, C, EL, threshold = self.constrained()
+        gL = self.constrain("gL")
+        g_c = self.constrain("g_c")
+        C = self.constrain("C")
+        EL = self.constrain("EL")
+        threshold = self.constrain("threshold")
         dt = self.dt
 
         # Both updates read the pre-step potentials: each state is a pure

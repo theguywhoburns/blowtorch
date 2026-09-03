@@ -48,7 +48,7 @@ class _Leaky(PyroModule):
         mem = PyroModule.StateSpec()
 
     def _step(self, x, mem):
-        beta, = self.constrained()
+        beta = self.constrain("beta")
         mem = beta * mem + x
         return mem, mem          # (out, next_mem)
 
@@ -362,10 +362,10 @@ def test_unexpected_kwarg_raises():
 def test_per_param_kwarg_overrides():
     m = _Leaky(beta=2.0, learnable_beta=True, beta_constraint=clamp_positive)
     assert m.beta.requires_grad is True
-    assert m.constrained()[0].item() == 2.0
+    assert m.constrain("beta").item() == 2.0
 
     m_unit = _Leaky(beta=2.0, learnable_beta=True)
-    assert m_unit.constrained()[0].item() == 1.0
+    assert m_unit.constrain("beta").item() == 1.0
 
 
 def test_force_learn_forces_learnable():
@@ -409,46 +409,47 @@ def test_invalid_param_name_raises():
         type("M", (PyroModule,), {"Params": P, "Specs": S, "_step": _step})
 
 
-def test_constrained_returns_declaration_order():
+def test_constrain_resolves_by_name():
     m = _Leaky()
-    (beta,) = m.constrained()
-    assert beta is m.beta
+    assert m.constrain("beta") is m.beta
 
     lif = LIF()
-    beta, threshold = lif.constrained()
-    assert beta is lif.beta
-    assert threshold is lif.threshold
+    assert lif.constrain("beta") is lif.beta
+    assert lif.constrain("threshold") is lif.threshold
+
+    with pytest.raises(KeyError, match="unknown Param"):
+        m.constrain("bogus")
 
 
 def test_constraint_applied_only_when_learnable():
     m = _Leaky(beta=2.0)
-    assert m.constrained()[0].item() == 2.0
+    assert m.constrain("beta").item() == 2.0
 
     m_learn = _Leaky(beta=2.0, learnable_beta=True)
-    assert m_learn.constrained()[0].item() == 1.0
+    assert m_learn.constrain("beta").item() == 1.0
 
 
 def test_constraint_policy_full_matrix():
     # Fixed param out of range -> used raw.
     fixed = _Leaky(beta=2.0)
-    assert fixed.constrained()[0].item() == 2.0
+    assert fixed.constrain("beta").item() == 2.0
 
     # Learnable param out of range -> clamped (unit interval).
     learn = _Leaky(beta=2.0, learnable_beta=True)
-    assert learn.constrained()[0].item() == 1.0
+    assert learn.constrain("beta").item() == 1.0
 
     # Custom per-param constraint override replaces the spec constraint.
     custom = _Leaky(beta=-5.0, learnable_beta=True, beta_constraint=clamp_positive)
-    assert custom.constrained()[0].item() == pytest.approx(1e-6)
+    assert custom.constrain("beta").item() == pytest.approx(1e-6)
 
     # Custom constraint is only used while learnable; fixed stays raw.
     fixed_custom = _Leaky(beta=-5.0, beta_constraint=clamp_positive)
-    assert fixed_custom.constrained()[0].item() == -5.0
+    assert fixed_custom.constrain("beta").item() == -5.0
 
 
-def test_constrained_empty_when_no_params():
+def test_constrained_dict_empty_when_no_params():
     m = _NoParams()
-    assert m.constrained() == ()
+    assert m.constrained_dict() == {}
 
 
 # ----------------------------------------------------------------------
@@ -1721,7 +1722,7 @@ def test_generic_rnn_forward_sequence_works():
     assert out.shape == (T, B, F)
 
 # ----------------------------------------------------------------------
-# I. Review fixes: graph-mode guard, state-only alloc, constrained_named
+# I. Review fixes: graph-mode guard, state-only alloc, constrained_dict
 # ----------------------------------------------------------------------
 
 
@@ -1775,25 +1776,14 @@ def test_alloc_hidden_creates_state_buffers_only():
     assert "out" not in sd and "mem" not in sd
 
 
-def test_constrained_named_matches_constrained_by_name():
+def test_constrained_dict_matches_constrain_by_name():
     net = LIF(learnable_beta=True, learnable_threshold=True)
 
-    named = net.constrained_named()
+    named = net.constrained_dict()
     assert set(named) == {"beta", "threshold"}
 
-    ordered = net.constrained()
-    assert torch.equal(ordered[0], named["beta"])
-    assert torch.equal(ordered[1], named["threshold"])
+    assert torch.equal(named["beta"], net.constrain("beta"))
+    assert torch.equal(named["threshold"], net.constrain("threshold"))
 
     # Constraints are applied by name too (beta clamps to [0, 1]).
     assert (named["beta"] >= 0).all() and (named["beta"] <= 1).all()
-
-
-def test_step_module_alias_is_pyro_module():
-    from pyrokinesis import StepModule
-
-    assert StepModule is PyroModule
-
-    # The alias constructs the same class with the same declarative surface.
-    m = StepModule(size=4)
-    assert isinstance(m, PyroModule)

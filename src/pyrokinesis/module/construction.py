@@ -123,14 +123,15 @@ def build_params(
 
 def _pk_install_constrained(module: PyroModule) -> None:
     """
-    Freeze the constrained-parameter accessor on the module.
+    Freeze the constrained-parameter accessors on the module.
 
-    The accessor is a closure over ``(name, constraint)`` pairs captured at
-    init: attribute lookups plus constraint calls in Params declaration
-    order, with no strings, no dict lookups, and no metadata resolution on
-    the hot path. No ``exec`` and no cache: the closure is built per module
-    and keeps no references whose lifetime could interact with GC (the old
-    ``id()``-keyed cache was safe only by accident).
+    Builds the per-instance ``name -> constraint`` map (``None`` where the
+    constraint is identity, i.e. fixed params) backing ``constrain(name)``:
+    one dict lookup plus one attribute lookup plus one constraint call per
+    requested parameter, with no metadata resolution on the hot path.
+    No ``exec`` and no cache: the map is built per module and keeps no
+    references whose lifetime could interact with GC (the old ``id()``-keyed
+    cache was safe only by accident).
 
     Constrained (non-identity) constraint callables are still exposed as
     ``_pk_constraint_{i}`` attributes because the SNN reset codegen
@@ -148,21 +149,12 @@ def _pk_install_constrained(module: PyroModule) -> None:
         if constraint is not identity:
             setattr(module, f"_pk_constraint_{i}", constraint)
 
-    pairs = tuple(
-        (name, None if constraint is identity else constraint)
+    module._pk_param_constraint_map = {
+        name: None if constraint is identity else constraint
         for name, constraint in zip(
             param_names, module._pk_constraints, strict=True
         )
-    )
-
-    def _pk_constrained(self, _pairs=pairs):
-        return tuple(
-            v if c is None else c(v)
-            for name, c in _pairs
-            for v in (getattr(self, name),)
-        )
-
-    module._pk_constrained_fn = _pk_constrained.__get__(module)
+    }
 
 
 def remaining_kwargs_error(

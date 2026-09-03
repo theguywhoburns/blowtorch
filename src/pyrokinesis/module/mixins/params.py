@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import inspect
-from typing import Any, Callable, ClassVar
-
-import torch
+from typing import Any, ClassVar
 
 from ..specs import Constraint, ParamSpec, Tensor
 
@@ -14,7 +12,7 @@ class ParamMixin:
     _pk_param_specs: ClassVar[dict[str, ParamSpec]] = {}
     _pk_param_annotations: ClassVar[dict[str, Any]] = {}
     _pk_constraints: tuple[Constraint, ...]
-    _pk_constrained_fn: Callable[..., tuple[Tensor, ...]]
+    _pk_param_constraint_map: dict[str, Constraint | None]
 
     @classmethod
     def _pk_extra_init_params(cls) -> list[inspect.Parameter]:
@@ -23,27 +21,42 @@ class ParamMixin:
         """
         return []
 
-    def constrained(self) -> tuple[Tensor, ...]:
+    def constrain(self, name: str) -> Tensor:
         """
-        Return constrained parameters in Params declaration order.
+        Return a single constrained parameter by ``Params`` name.
 
-        Hot path:
-          - no strings
-          - no dict lookups
-          - no metadata resolution
-
-        The returned expression is frozen at init time.
+        One dict lookup plus one attribute lookup plus one constraint call;
+        only the requested parameter is resolved, so ``_step`` bodies pay
+        for what they use and never need positional placeholders for
+        params consumed elsewhere (e.g. by declarative resets). Prefer
+        this in ``_step``.
         """
-        return self._pk_constrained_fn()
+        try:
+            constraint = self._pk_param_constraint_map[name]
+        except KeyError:
+            raise KeyError(
+                f"unknown Param {name!r}; "
+                f"valid: {sorted(self._pk_param_specs)}"
+            ) from None
+        value = getattr(self, name)
+        return value if constraint is None else constraint(value)
 
-    def constrained_named(self) -> dict[str, torch.Tensor]:
+    # NOTE: `constrained()` (tuple in Params declaration order) was removed.
+    # It was fully dependent on declaration order: inserting a Param silently
+    # shifted every positional unpacking downstream of it, and callers that
+    # skipped reset-only params needed silent `_` placeholders that shifted
+    # too. Use `constrain(name)` per parameter, or `constrained_dict()` for
+    # the whole mapping.
+    # def constrained(self) -> tuple[Tensor, ...]:
+    #     return self._pk_constrained_fn()
+
+    def constrained_dict(self) -> dict[str, Tensor]:
         """
         Constrained parameters keyed by Params declaration name.
 
-        Same values as ``constrained()``, resolved by name instead of
-        declaration order, so inserting a Param cannot silently shift values
-        into the wrong variable when a caller unpacks positionally. Prefer
-        this in ``_step`` unless profiling shows the per-call dict build
-        matters; ``constrained()`` remains the zero-overhead hot path.
+        Same values as ``constrain(name)`` per name, so inserting a Param
+        cannot silently shift values into the wrong variable. Prefer
+        ``constrain(name)`` in ``_step`` — this builds the whole mapping
+        every call.
         """
-        return dict(zip(self._pk_param_specs, self.constrained(), strict=True))
+        return {name: self.constrain(name) for name in self._pk_param_specs}

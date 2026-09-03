@@ -20,6 +20,22 @@ from pyrokinesis.module.mixins.scan import _store_hidden_seq_buffers
 __all__ = ["Sequential"]
 
 
+# PyroModule's __init_subclass__ generates a parameter-only signature that
+# hides the positional *layers. The real constructor signature, restored on
+# Sequential below and re-applied to subclasses without their own __init__.
+_SEQUENTIAL_SIG = inspect.Signature(
+    [
+        inspect.Parameter("layers", inspect.Parameter.VAR_POSITIONAL),
+        inspect.Parameter(
+            "init_hidden", inspect.Parameter.KEYWORD_ONLY, default=False
+        ),
+        inspect.Parameter(
+            "validate", inspect.Parameter.KEYWORD_ONLY, default=None
+        ),
+    ]
+)
+
+
 class Sequential(PyroModule):
     """
     Stack layers into a network.
@@ -49,6 +65,16 @@ class Sequential(PyroModule):
     _pk_state_names: tuple[str, ...]  # pyright: ignore[reportIncompatibleVariableOverride]
     _pk_state_specs: tuple[StateSpec, ...]  # pyright: ignore[reportIncompatibleVariableOverride]
     _pk_spec_entries: tuple[tuple[str, Any], ...]  # pyright: ignore[reportIncompatibleVariableOverride]
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        # Re-apply the layers signature so subclasses of Sequential keep
+        # (*layers, init_hidden, validate) — unless the subclass defines
+        # its own __init__, whose signature always wins.
+        if "__init__" in cls.__dict__:
+            cls.__signature__ = inspect.signature(cls.__init__)
+        else:
+            cls.__signature__ = _SEQUENTIAL_SIG
 
     def __init__(
         self,
@@ -124,6 +150,7 @@ class Sequential(PyroModule):
         object.__setattr__(self, "_pk_spec_entries", (("y", output_spec), *state_entries))
 
     def _pk_rebuild_state_registry(self) -> None:
+        old_state_names = self.__dict__.get("_pk_state_names", ())
         state_entries: list[tuple[str, StateSpec]] = []
         for i, layer in enumerate(self._layers):
             if isinstance(layer, PyroModule):
@@ -133,13 +160,24 @@ class Sequential(PyroModule):
                             (f"l{i}_{name}", StateSpec(default=layer._pk_resolve_default(spec.default)))
                         )
         out_spec = self._pk_output_specs[0] if self._pk_output_specs else OutputSpec()
+        new_state_names = tuple(n for n, _ in state_entries)
         object.__setattr__(self, "_pk_output_names", ("y",))
         object.__setattr__(self, "_pk_output_specs", (out_spec,))
-        object.__setattr__(self, "_pk_state_names", tuple(n for n, _ in state_entries))
+        object.__setattr__(self, "_pk_state_names", new_state_names)
         object.__setattr__(self, "_pk_state_specs", tuple(s for _, s in state_entries))
         object.__setattr__(self, "_pk_spec_entries", (("y", out_spec), *state_entries))
         self.__dict__.pop("_pk_probe_cache", None)
         self._pk_compiled_sequence = None
+        # When the state-name set changes (layer added/removed or state
+        # arity changed), purge orphaned buffers and force re-allocation
+        # so the surviving layers read correct hidden state on next forward.
+        if new_state_names != old_state_names:
+            valid = set(new_state_names) | set(self._pk_output_names)
+            for name in list(self._buffers):
+                if name not in valid:
+                    self._buffers.pop(name, None)
+                    self._non_persistent_buffers_set.discard(name)
+            self.__dict__["_pk_allocated"] = False
 
     def __setattr__(self, name: str, value: Any) -> None:
         if name.startswith("layer") and name[5:].isdigit() and "_layers" in self.__dict__:
@@ -156,13 +194,16 @@ class Sequential(PyroModule):
             return
         if name == "_layers" and "_layers" in self.__dict__:
             super().__setattr__(name, value)
-            # sync layer{i} attributes without re-entering the layer branch
-            for key in list(self.__dict__.keys()):
-                if key.startswith("layer") and key[5:].isdigit() and int(key[5:]) >= len(value):
-                    try:
-                        super().__delattr__(key)
-                    except AttributeError:
-                        pass
+            # Children live in _modules, not __dict__: iterate _modules to
+            # correctly deregister stale layer{i>len-1} entries.
+            for key in [
+                k for k in list(self._modules)
+                if k.startswith("layer") and k[5:].isdigit() and int(k[5:]) >= len(value)
+            ]:
+                try:
+                    super().__delattr__(key)
+                except AttributeError:
+                    pass
             for i, layer in enumerate(value):
                 nn.Module.__setattr__(self, f"layer{i}", layer)  # type: ignore[attr-defined]
             self._pk_rebuild_state_registry()
@@ -178,6 +219,11 @@ class Sequential(PyroModule):
         super().__delattr__(name)
 
     def __setitem__(self, idx: int, value: nn.Module) -> None:
+        n = len(self._layers)
+        if idx < 0:
+            idx += n
+        if not 0 <= idx < n:
+            raise IndexError(idx)
         if not isinstance(value, nn.Module):
             raise TypeError(f"Sequential layer {idx} must be nn.Module")
         if isinstance(value, PyroModule) and value.init_hidden:
@@ -197,24 +243,20 @@ class Sequential(PyroModule):
         # the module half-way through the operation.
         if n == 1:
             raise ValueError("Sequential requires at least one layer")
-        old_len = n
         del self._layers[idx]
-        # re-register remaining layers under correct indices
-        for key in list(self.__dict__.keys()):
-            if key.startswith("layer") and key[5:].isdigit():
-                try:
-                    super().__delattr__(key)
-                except AttributeError:
-                    pass
+        # re-register remaining layers under correct indices (children live
+        # in _modules, not __dict__)
+        for key in [
+            k for k in list(self._modules)
+            if k.startswith("layer") and k[5:].isdigit()
+        ]:
+            try:
+                super().__delattr__(key)
+            except AttributeError:
+                pass
         for i, layer in enumerate(self._layers):
             nn.Module.__setattr__(self, f"layer{i}", layer)  # type: ignore[attr-defined]
-        # _modules already updated via __delattr__/__setattr__; rebuild registry
         self._pk_rebuild_state_registry()
-        # remove stale layer{old_len-1} if any remains in _modules
-        try:
-            super().__delattr__(f"layer{old_len-1}")
-        except AttributeError:
-            pass
 
     def __getitem__(self, idx: int) -> nn.Module:
         return self._layers[idx]
@@ -507,21 +549,4 @@ class Sequential(PyroModule):
         return f"{type(self).__name__}(\n  {inner}\n)"
 
 
-# PyroModule's __init_subclass__ generates a parameter-only signature that
-# hides the positional *layers. Restore the real constructor signature for
-# help()/inspect.
-setattr(  # noqa: B010
-    Sequential,
-    "__signature__",
-    inspect.Signature(
-        [
-            inspect.Parameter("layers", inspect.Parameter.VAR_POSITIONAL),
-            inspect.Parameter(
-                "init_hidden", inspect.Parameter.KEYWORD_ONLY, default=False
-            ),
-            inspect.Parameter(
-                "validate", inspect.Parameter.KEYWORD_ONLY, default=None
-            ),
-        ]
-    ),
-)
+setattr(Sequential, "__signature__", _SEQUENTIAL_SIG)  # noqa: B010

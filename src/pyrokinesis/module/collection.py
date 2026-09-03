@@ -332,11 +332,16 @@ def generate_signature(cls: type[PyroModule]) -> None:
     # by defining _pk_extra_init_params in its own __dict__. Aggregate
     # base-first so no contributor needs super() and none is dropped
     # (SnnModule.spike_grad used to shadow ParamMixin's hook).
+    # Deduplicate by name: first contributor (base) wins.
+    seen_init_param_names: set[str] = set()
     for klass in reversed(cls.__mro__):
         hook = klass.__dict__.get("_pk_extra_init_params")
         if hook is not None:
             fn = hook.__func__ if isinstance(hook, classmethod) else hook
-            sig_params.extend(fn(cls))
+            for param in fn(cls):
+                if param.name not in seen_init_param_names:
+                    seen_init_param_names.add(param.name)
+                    sig_params.append(param)
 
     sig_params.append(
         inspect.Parameter(

@@ -55,32 +55,34 @@ def test_lif_parameter_defaults():
     assert isinstance(lif.threshold, torch.nn.Parameter)
     assert lif.beta.requires_grad is False
     assert lif.threshold.requires_grad is False
-    beta, threshold = lif.constrained()
+    beta = lif.constrain("beta")
+    threshold = lif.constrain("threshold")
     assert beta.item() == pytest.approx(0.9)
     assert threshold.item() == 1.0
 
 
 def test_lif_beta_constraint_unit_interval():
     m1 = LIF(beta=2.0, learnable_beta=True)
-    assert m1.constrained()[0].item() == pytest.approx(1.0)
+    assert m1.constrain("beta").item() == pytest.approx(1.0)
     m2 = LIF(beta=-0.5, learnable_beta=True)
-    assert m2.constrained()[0].item() == pytest.approx(0.0)
+    assert m2.constrain("beta").item() == pytest.approx(0.0)
     m3 = LIF(beta=0.9, learnable_beta=True)
-    assert m3.constrained()[0].item() == pytest.approx(0.9)
+    assert m3.constrain("beta").item() == pytest.approx(0.9)
 
 
 def test_lif_threshold_constraint_positive():
     m1 = LIF(threshold=0.0, learnable_threshold=True)
-    assert m1.constrained()[1].item() == pytest.approx(1e-6)
+    assert m1.constrain("threshold").item() == pytest.approx(1e-6)
     m2 = LIF(threshold=-2.0, learnable_threshold=True)
-    assert m2.constrained()[1].item() == pytest.approx(1e-6)
+    assert m2.constrain("threshold").item() == pytest.approx(1e-6)
     m3 = LIF(threshold=1.0, learnable_threshold=True)
-    assert m3.constrained()[1].item() == pytest.approx(1.0)
+    assert m3.constrain("threshold").item() == pytest.approx(1.0)
 
 
 def test_lif_constraints_skipped_when_fixed():
     m = LIF(beta=2.0, threshold=0.5)
-    beta, threshold = m.constrained()
+    beta = m.constrain("beta")
+    threshold = m.constrain("threshold")
     assert beta.item() == pytest.approx(2.0)
     assert threshold.item() == pytest.approx(0.5)
 
@@ -154,7 +156,7 @@ def test_lif_reset_uses_constrained_threshold():
         learnable_threshold=True,
         spike_grad=lambda x: torch.ones_like(x),
     )
-    assert lif.constrained()[1].item() == pytest.approx(1e-6)
+    assert lif.constrain("threshold").item() == pytest.approx(1e-6)
 
     mem = torch.zeros(1)
     spk, (mem,) = lif.step_state(torch.tensor([0.1]), (mem,))

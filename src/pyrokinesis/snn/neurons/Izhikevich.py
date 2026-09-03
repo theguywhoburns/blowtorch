@@ -47,15 +47,15 @@ class Izhikevich(SnnModule):
         v: Tensor,
         u: Tensor,
     ) -> StepOutput:
-        # Name-based access: inserting a Param must not shift values into the
-        # wrong variable (positional unpacking is load-bearing otherwise).
-        p = self.constrained_named()
-        a, b, dt = p["a"], p["b"], self.dt
+        a = self.constrain("a")
+        b = self.constrain("b")
+        v_peak = self.constrain("v_peak")
+        dt = self.dt
 
         # Both updates read the pre-step potentials: each state is a pure
         # function of the step inputs, independent of the other's update.
         v_new = v + (0.04 * v ** 2 + 5 * v + 140 - u + x) * dt
         u_new = u + (a * (b * v - u)) * dt
-        spk = self.spike_grad(v_new - p["v_peak"])
+        spk = self.spike_grad(v_new - v_peak)
 
         return spk, v_new, u_new

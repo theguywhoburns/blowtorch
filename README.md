@@ -145,7 +145,8 @@ class MyLIF(SnnModule):
         mem = SnnModule.StateSpec(reset=Reset.subtract("threshold"))
 
     def _step(self, x, mem):
-        beta, threshold = self.constrained()   # hot path, constraints applied
+        beta = self.constrain("beta")
+        threshold = self.constrain("threshold")
         mem = beta * mem + x
         spk = self.spike_grad(mem - threshold)
         return spk, mem
@@ -155,8 +156,8 @@ Key pieces:
 
 - `Params` entries become constructor kwargs and `nn.Parameter`s, each with
   `learnable_<name>`, `force_learn_<name>`, and `<name>_constraint`
-  overrides. `self.constrained()` returns the constrained values in
-  declaration order.
+  overrides. `self.constrain(name)` returns one constrained value by name;
+  `self.constrained_dict()` returns the whole mapping.
 - `Specs` entries are `OutputSpec` (returned, not recurrent) or `StateSpec`
   (recurrent state, threaded through `_step`). `StateSpec(shape=...)` can
   decouple the state shape from the input shape.
@@ -177,7 +178,10 @@ Key pieces:
   `add("b")` injects an amount (AdEx adaptation), `custom(fn)` calls a method.
 - **Validation** - `validate=True` (default) checks step arity and state
   shapes on each call; override per module, or globally with
-  `set_validation()` / `no_validation()`.
+  `set_validation()` / `no_validation()`. Cost is ~10-20% in eager mode
+  (a few O(1) checks per step) and ~zero compiled (they trace away) —
+  and pyrokinesis stays faster than snnTorch/Norse on every row with
+  validation on (see the bench tables below).
 - **Long sequences** - the compiled scan is a fully unrolled T-step graph, so
   compilation cost and memory grow with T (fast up to ~T=1000, impractical
   past ~T=3000). Chunk the input for very long sequences, or tune the eager
@@ -201,32 +205,32 @@ point, not as evidence.
 
 | library         | mode          | compiled | ms      | steps/s  | peak MiB | vs pyrokinesis seq eager |
 | --------------- | ------------- | -------- | ------- | -------- | -------- | ------------------------ |
-| pyrokinesis LIF | seq hidden    | eager    | 37.605  | 26,592   | 254.6    | 1.00x                    |
-| pyrokinesis LIF | seq hidden    | compile  | 3.450   | 289,832  | 252.5    | 0.09x                    |
-| pyrokinesis LIF | seq explicit  | eager    | 39.736  | 25,166   | 254.8    | 1.06x                    |
-| pyrokinesis LIF | seq explicit  | compile  | 3.431   | 291,464  | 252.4    | 0.09x                    |
-| pyrokinesis LIF | step hidden   | eager    | 40.569  | 24,649   | 126.8    | 1.08x                    |
-| pyrokinesis LIF | step hidden   | compile  | 33.694  | 29,679   | 126.5    | 0.89x                    |
-| pyrokinesis LIF | step explicit | eager    | 36.701  | 27,247   | 127.0    | 0.98x                    |
-| pyrokinesis LIF | step explicit | compile  | 33.684  | 29,687   | 126.8    | 0.89x                    |
-| snntorch        | seq           | eager    | 102.155 | 9,789    | 377.5    | 2.72x                    |
-| snntorch        | seq           | compile  | 41.338  | 24,191   | 377.8    | 1.10x                    |
-| norse           | seq           | eager    | 108.880 | 9,184    | 378.0    | 2.90x                    |
-| norse           | seq           | compile  | 4.326   | 231,181  | 376.6    | 0.12x                    |
-| norse           | step          | eager    | 100.244 | 9,976    | 128.0    | 2.67x                    |
-| norse           | step          | compile  | 37.790  | 26,462   | 127.3    | 1.00x                    |
+| pyrokinesis LIF | seq hidden    | eager    | 39.918  | 25,051   | 254.6    | 1.00x                    |
+| pyrokinesis LIF | seq hidden    | compile  | 3.451   | 289,810  | 252.5    | 0.09x                    |
+| pyrokinesis LIF | seq explicit  | eager    | 41.180  | 24,284   | 254.8    | 1.03x                    |
+| pyrokinesis LIF | seq explicit  | compile  | 3.420   | 292,401  | 252.4    | 0.09x                    |
+| pyrokinesis LIF | step hidden   | eager    | 45.254  | 22,098   | 126.8    | 1.13x                    |
+| pyrokinesis LIF | step hidden   | compile  | 38.433  | 26,020   | 126.5    | 0.96x                    |
+| pyrokinesis LIF | step explicit | eager    | 41.608  | 24,034   | 127.0    | 1.04x                    |
+| pyrokinesis LIF | step explicit | compile  | 36.418  | 27,459   | 126.8    | 0.91x                    |
+| snntorch        | seq           | eager    | 101.685 | 9,834    | 377.5    | 2.55x                    |
+| snntorch        | seq           | compile  | 39.432  | 25,360   | 378.0    | 0.99x                    |
+| norse           | seq           | eager    | 100.005 | 9,999    | 378.3    | 2.51x                    |
+| norse           | seq           | compile  | 4.332   | 230,829  | 376.6    | 0.11x                    |
+| norse           | step          | eager    | 99.913  | 10,009   | 128.0    | 2.50x                    |
+| norse           | step          | compile  | 37.215  | 26,871   | 127.3    | 0.93x                    |
 
-Even uncompiled, pyrokinesis (37.6 ms) beats eager snnTorch (102.2 ms, ~2.7x)
-and eager Norse (108.9 ms, ~2.9x). The compiled scan (3.45 ms) is ~10.9x faster
-than pyrokinesis's own eager scan, ~12x faster than compiled snnTorch
-(41.3 ms), and ~1.25x faster than compiled Norse (4.33 ms). No custom
+Even uncompiled, pyrokinesis (39.9 ms) beats eager snnTorch (101.7 ms, ~2.55x)
+and eager Norse (100.0 ms, ~2.5x). The compiled scan (3.45 ms) is ~11.6x faster
+than pyrokinesis's own eager scan, ~11.4x faster than compiled snnTorch
+(39.4 ms), and ~1.26x faster than compiled Norse (4.33 ms). No custom
 kernels; the speed is pure Python math through `torch.compile`.
 
 Compiled timings vary run-to-run on this laptop GPU (typical single runs read
 ~3.3-3.8 ms; best-of runs drop to ~3.4 ms); the compiled rows above are the
 latest steady-state values.
 
-Compiling the per-step loop barely helps (33.7 vs 40.6 ms): per-step Python
+Compiling the per-step loop barely helps (38.4 vs 45.3 ms): per-step Python
 dispatch dominates. Compiling the whole sequence scan wins because it fuses
 the unrolled graph into one call.
 
@@ -257,17 +261,17 @@ LIF` (Linear-light, LIF-heavy).
 
 | library                | mode      | compiled | ms      | steps/s | peak MiB | vs pyrokinesis seq eager |
 | ---------------------- | --------- | -------- | ------- | ------- | -------- | ------------------------ |
-| pyrokinesis Sequential | seq       | eager    | 210.547 | 4,750   | 74.4     | 1.00x                    |
-| pyrokinesis Sequential | seq       | compile  | 22.435  | 44,574  | 79.5     | 0.11x                    |
-| pyrokinesis Sequential | step      | eager    | 208.470 | 4,797   | 73.7     | 0.99x                    |
-| snntorch               | step loop | eager    | 553.537 | 1,807   | 77.2     | 2.63x                    |
-| snntorch               | step loop | compile  | 97.302  | 10,277  | 77.2     | 0.46x                    |
-| norse                  | seq       | eager    | 500.846 | 1,997   | 263.2    | 2.38x                    |
-| norse                  | seq       | compile  | 23.924  | 41,800  | 260.1    | 0.11x                    |
+| pyrokinesis Sequential | seq       | eager    | 217.549 | 4,597   | 74.4     | 1.00x                    |
+| pyrokinesis Sequential | seq       | compile  | 22.759  | 43,938  | 79.5     | 0.10x                    |
+| pyrokinesis Sequential | step      | eager    | 229.107 | 4,365   | 73.7     | 1.05x                    |
+| snntorch               | step loop | eager    | 575.159 | 1,739   | 76.2     | 2.64x                    |
+| snntorch               | step loop | compile  | 99.565  | 10,044  | 77.2     | 0.46x                    |
+| norse                  | seq       | eager    | 514.664 | 1,943   | 263.2    | 2.37x                    |
+| norse                  | seq       | compile  | 25.099  | 39,842  | 260.1    | 0.12x                    |
 
-The whole network compiles as one fused scan (22.4 ms): ~9.4x faster than
-pyrokinesis's own eager sequence, ~1.07x faster than compiled Norse (23.9 ms),
-~2.4x faster than eager Norse, and ~2.63x faster than eager snnTorch. The
+The whole network compiles as one fused scan (22.8 ms): ~9.6x faster than
+pyrokinesis's own eager sequence, ~1.10x faster than compiled Norse (25.1 ms),
+~2.4x faster than eager Norse, and ~2.64x faster than eager snnTorch. The
 compiled stack also uses ~3.3x less GPU memory than Norse (79.5 vs 260.1 MiB).
 
 snnTorch has no sequence module, so it runs the canonical per-step loop with

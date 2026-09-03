@@ -5,13 +5,13 @@ Order-less mixins. Base order in `PyroModule` must not matter.
 ## 1. Tags
 
 Every private member belongs to exactly one mixin and is prefixed
-`_pk_<tag>_`. Public API (`forward`, `initial_state`, `constrained`, …)
+`_pk_<tag>_`. Public API (`forward`, `initial_state`, `constrain`, …)
 is exempt.
 
 | tag | mixin (file) | base | owns |
 | --- | --- | --- | --- |
 | `in` | `InputMixin` (`inputs.py`) | — | input entries/names/specs, `_pk_in_canonical` |
-| `par` | `ParamMixin` (`params.py`) | — | param specs/constraints, `_pk_par_constrained*` |
+| `par` | `ParamMixin` (`params.py`) | — | param specs/constraints, `_pk_param_constraint_map` |
 | `cst` | `ConstantMixin` (`constants.py`) | — | constant specs |
 | `st` | `StateMixin` (`states.py`) | `in` | output/state entries, shapes, alloc, state factories |
 | `fwd` | `ForwardMixin` (`forward.py`) | `st` | `_pk_fwd_explicit`, `_pk_fwd_hidden`, `forward`, `step` |
@@ -33,7 +33,7 @@ param access stays duck-typed.
 Free helpers (`collect_metadata`, `build_params`, `sequence_scan`) keep
 plain names — they are functions, not mixin state.
 
-## 2. Ownership (single definition) + two cooperative chains
+## 2. Ownership (single definition) + two frozen hook chains
 
 A `_pk_<tag>_*` name may appear in exactly one mixin `__dict__` across
 the whole MRO. Call owners by full tagged name
@@ -42,7 +42,8 @@ is an honest `AttributeError`.
 
 Two points are frozen hook chains, not single owners. Contributors define
 bare `_pk_hook_<point>__<tag>` methods (no `super()` calls); `PyroModule`
-freezes ordered tuples once per class in `__init_subclass__` (base-first)
+freezes ordered tuples once per class in `__init_subclass__` (child-first;
+a subclass redefining the same hook name *replaces* the parent entry)
 and drivers iterate them. Zero per-call `super()`/`getattr` — this keeps
 Dynamo from graph-breaking on the hot path:
 
@@ -56,8 +57,9 @@ Dynamo from graph-breaking on the hot path:
 
 Only names starting `_pk_hook_<point>__<tag>` may repeat. The base
 freezes ordered tuples in `__init_subclass__` by scanning
-`reversed(cls.__mro__)` for that prefix — deterministic base-first
-order, no `super()` chain, no `hasattr(<tag>)` in base.
+`cls.__mro__` (child-first) for that prefix: a subclass redefining the
+same hook name replaces the parent entry (replace, not additive) — no
+`super()` chain, no `hasattr(<tag>)` in base.
 
 Points:
 
@@ -68,9 +70,10 @@ Points:
   `ForwardMixin._pk_fwd_explicit`. `fwd` identity is the default when
   no hooks registered; `rst` applies resets here. Replaces
   `_pk_post_step` overrides.
-* `_pk_hook_params__*` — each returns `list[inspect.Parameter]`;
-  `collection.generate_signature` concatenates them. Replaces
-  `_pk_extra_init_params` overrides (which dropped `super()`).
+
+Init params (`_pk_extra_init_params`) are not a hook chain: every mixin
+in the MRO may contribute, aggregated base-first over `reversed(mro)`
+with deduplication by parameter name (first contributor wins).
 
 Adding a mixin = new tag + hook definitions. Zero base edits.
 

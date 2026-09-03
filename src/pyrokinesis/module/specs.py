@@ -116,7 +116,7 @@ def Param(
     help() honest about this.
 
     Constraints apply only to learnable parameters: a fixed (non-learnable)
-    param is used raw in ``constrained()`` / resets, while a learnable one has
+    param is used raw in ``constrain(name)`` / resets, while a learnable one has
     its constraint applied on the hot path.
     """
     return ParamSpec(

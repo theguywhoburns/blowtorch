@@ -50,7 +50,9 @@ class SRM0(SnnModule):
         mem: Tensor,
         adapt: Tensor,
     ) -> StepOutput:
-        tau_mem, tau_ref, threshold = self.constrained()
+        tau_mem = self.constrain("tau_mem")
+        tau_ref = self.constrain("tau_ref")
+        threshold = self.constrain("threshold")
 
         decay_mem = (-self.dt / tau_mem).exp()
         decay_ref = (-self.dt / tau_ref).exp()

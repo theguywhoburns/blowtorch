@@ -60,7 +60,6 @@ __all__ = [
     "ParamSpec",
     "PyroModule",
     "StateSpec",
-    "StepModule",
     "StepOutput",
     "Tensor",
     "clamp_positive",
@@ -194,11 +193,6 @@ class PyroModule(
     ``validate=...`` init parameter, or set the global default with
     ``set_validation(...)`` / ``no_validation()``. Once ``validate=`` is set on
     a module it no longer follows the global toggle.
-
-    Naming note: ``PyroModule`` collides with ``pyro.nn.PyroModule``
-    (pyro-ppl). If you use both libraries in one project, import this one
-    as ``from pyrokinesis import StepModule`` — a documented alias for the
-    same class — to keep stack traces and grep results unambiguous.
     """
 
     # Namespaced declarative helpers.
@@ -209,7 +203,8 @@ class PyroModule(
     OutputSpec = OutputSpec
     StateSpec = StateSpec
 
-    # Frozen hook chains (collected once per class, base-first). Hot paths
+    # Frozen hook chains (collected once per class, child-first; a subclass
+    # redefining the same hook name replaces the parent entry). Hot paths
     # iterate these tuples instead of resolving super()/getattr per call.
     _pk_hook_post_steps: ClassVar[tuple[Callable[..., Any], ...]] = ()
     _pk_hook_specs_steps: ClassVar[tuple[Callable[..., Any], ...]] = ()
@@ -221,18 +216,19 @@ class PyroModule(
 
         collect_metadata(cls)
         generate_signature(cls)
-        cls._pk_hook_post_steps = tuple(
-            klass.__dict__[name]
-            for klass in reversed(cls.__mro__)
-            for name in klass.__dict__
-            if name.startswith("_pk_hook_post__")
-        )
-        cls._pk_hook_specs_steps = tuple(
-            klass.__dict__[name]
-            for klass in reversed(cls.__mro__)
-            for name in klass.__dict__
-            if name.startswith("_pk_hook_specs__")
-        )
+        # Collect frozen hook chains. Iterate MRO child-first so that if a
+        # subclass redefines the same _pk_hook_<point>__<tag> method, it
+        # *replaces* the parent's entry (replace semantics, not additive).
+        post_hooks: dict[str, Callable[..., Any]] = {}
+        spec_hooks: dict[str, Callable[..., Any]] = {}
+        for klass in cls.__mro__:  # child-first
+            for name, fn in klass.__dict__.items():
+                if name.startswith("_pk_hook_post__"):
+                    post_hooks.setdefault(name, fn)
+                elif name.startswith("_pk_hook_specs__"):
+                    spec_hooks.setdefault(name, fn)
+        cls._pk_hook_post_steps = tuple(post_hooks.values())
+        cls._pk_hook_specs_steps = tuple(spec_hooks.values())
 
     # Construction
 
@@ -273,9 +269,3 @@ class PyroModule(
         self._pk_constraints: tuple[Constraint, ...] = tuple(constraint_fns)
         _pk_install_constrained(self)
         self._pk_process_spec_extensions()
-
-
-# The destination name collides head-on with pyro.nn.PyroModule (pyro-ppl).
-# Rename candidate for a future major; until then, ship a documented alias so
-# projects that import both libraries can stay unambiguous.
-StepModule = PyroModule

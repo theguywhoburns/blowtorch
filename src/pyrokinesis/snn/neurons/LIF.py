@@ -33,7 +33,8 @@ class LIF(SnnModule):
         mem = SnnModule.StateSpec(reset=Reset.subtract("threshold"))
 
     def _step(self, x: Tensor, mem: Tensor) -> StepOutput:
-        beta, threshold = self.constrained()
+        beta = self.constrain("beta")
+        threshold = self.constrain("threshold")
 
         mem = beta * mem + x
         spk = self.spike_grad(mem - threshold)

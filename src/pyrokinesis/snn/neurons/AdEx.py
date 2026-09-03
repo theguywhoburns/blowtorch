@@ -67,16 +67,14 @@ class AdEx(SnnModule):
         mem: Tensor,
         adapt: Tensor,
     ) -> StepOutput:
-        # Name-based access: V_reset and b are consumed by declarative resets
-        # (set/add), not by the dynamics — with positional unpacking they need
-        # silent `_` placeholders that shift if a Param is inserted.
-        p = self.constrained_named()
-        tau_m = p["tau_m"]
-        tau_w = p["tau_w"]
-        V_rest = p["V_rest"]
-        V_T = p["V_T"]
-        delta_T = p["delta_T"]
-        a = p["a"]
+        # Single-var access: V_reset and b are consumed by declarative resets
+        # (set/add), not by the dynamics — only the needed params resolve.
+        tau_m = self.constrain("tau_m")
+        tau_w = self.constrain("tau_w")
+        V_rest = self.constrain("V_rest")
+        V_T = self.constrain("V_T")
+        delta_T = self.constrain("delta_T")
+        a = self.constrain("a")
 
         dv = (
             -(mem - V_rest)

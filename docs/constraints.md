@@ -1,9 +1,19 @@
 # Constraints
 
 Every `Param` can be wrapped in a constraint applied on the hot path.
-`self.constrained()` returns the constrained parameter values in `Params`
-declaration order - this is the documented way to read parameters inside
-`_step`.
+`self.constrain(name)` returns a single constrained parameter by `Params`
+name — this is the documented way to read parameters inside `_step`:
+
+```python
+def _step(self, x, mem):
+    beta = self.constrain("beta")
+    threshold = self.constrain("threshold")
+    ...
+```
+
+`self.constrained_dict()` returns the whole mapping keyed by name. There is
+deliberately no positional accessor: a tuple in declaration order makes
+inserting a Param silently shift every unpacking downstream of it.
 
 ## Policy: constraints apply to learnable params only
 
@@ -23,7 +33,7 @@ class LIF(SnnModule):
         threshold = SnnModule.Param(1.0, constraint=clamp_positive)
 ```
 
-- `LIF(beta=2.0)` -> fixed, `constrained()` returns `2.0` (no clamping).
+- `LIF(beta=2.0)` -> fixed, `constrain("beta")` returns `2.0` (no clamping).
 - `LIF(beta=2.0, learnable_beta=True)` -> learnable, clamped to `[0, 1]`
   every step.
 - Resets that target a param also use its constrained value.
@@ -61,7 +71,8 @@ param still bypasses it.
 
 ## Hot path
 
-Constraints are resolved into a single frozen expression at init
-(`_pk_constrained_fn`): no string lookups or metadata resolution on the step
-path. The same frozen expression backs reset targets, so constrained values
-stay consistent between the step math and the reset math.
+Constraints are resolved through a per-instance frozen map at init
+(`_pk_param_constraint_map`): one dict lookup plus one attribute lookup per
+requested parameter, no metadata resolution on the step path. The same
+frozen constraints back reset targets, so constrained values stay
+consistent between the step math and the reset math.
